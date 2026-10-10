@@ -171,6 +171,15 @@ wheels = [
 ]
 
 [[package]]
+name = "click"
+version = "8.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/0e/7fa0ef50764b67090eca4114772a2abf8b6148198475e54c660b97caeee6/click-8.5.0.tar.gz", hash = "sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34", size = 382235, upload-time = "2026-08-26T13:33:14.56Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl", hash = "sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360", size = 125251, upload-time = "2026-08-26T13:33:12.928Z" },
+]
+
+[[package]]
 name = "dnfile"
 version = "0.18.0"
 source = { registry = "https://pypi.org/simple" }
@@ -194,6 +203,7 @@ dependencies = [
     { name = "pycryptodome" },
     { name = "pyelftools" },
     { name = "pyyaml" },
+    { name = "quicktex" },
     { name = "soundfile" },
     { name = "truststore" },
     { name = "unitypy" },
@@ -213,6 +223,7 @@ requires-dist = [
     { name = "pycryptodome", specifier = ">=3.24.0" },
     { name = "pyelftools", specifier = "==0.29" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "quicktex", specifier = ">=0.3.1" },
     { name = "soundfile", specifier = ">=0.14.0" },
     { name = "truststore", specifier = ">=0.10" },
     { name = "unitypy", specifier = "==1.25.3" },
@@ -590,6 +601,30 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/da/92/1446574745d74df0c92e6aa4a7b0b3130706a4142b2d1a5869f2eaa423c6/pyyaml-6.0.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:16249ee61e95f858e83976573de0f5b2893b3677ba71c9dd36b9cf8be9ac6d65", size = 829923, upload-time = "2025-09-25T21:32:54.537Z" },
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
+]
+
+[[package]]
+name = "quicktex"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "pillow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/88/9522a44dc43b4706211507abf1efcf4aec29bc3542011a5cab4027f4f8e3/quicktex-0.3.1.tar.gz", hash = "sha256:268072a1a461a029e0f41063e622cacfe9b7ef04355c26d21855573b88d063ee", size = 29173872, upload-time = "2024-10-17T08:06:47.163Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/16/25/3715468f610a658045d230e376437ab0f06a640f893ce6bc954bc3181a91/quicktex-0.3.1-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:6269cbe53b4faadf0df4e9fabd0f47ce35630e60ff3b51c4c53a163041c196e1", size = 1044598, upload-time = "2024-10-17T08:06:14.213Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/97/1e3cf7d1af0558766e8af4f7c7067f95e01d97f499643164ccbe3cabe794/quicktex-0.3.1-cp312-cp312-macosx_12_0_x86_64.whl", hash = "sha256:312b42aab3c4260d415d8b36a45886314718992d9f411aaf623fd344a76fed59", size = 1059161, upload-time = "2024-10-17T08:06:16.039Z" },
+    { url = "https://files.pythonhosted.org/packages/45/ac/d5c3d3ca8d72e110fcd35ae9b6d68e88523f441a85a4c72069b3dad4c445/quicktex-0.3.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e0ba921d1f1729533f5116942dbff9f45ebc98c3673e596be9fba0b1057ab183", size = 8168402, upload-time = "2024-10-17T08:06:17.706Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/23/18c9c74e2218b55addb4eab9b33dcec5446c1bd6f98d74caef171ddacf5b/quicktex-0.3.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:07275538fb59974f8ce734a1df318c33c20a48c1e681a9db15c708b8472ef65f", size = 8250129, upload-time = "2024-10-17T08:06:19.982Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/3d/eef288ecfef5540bf9741ea11b5133f784b1f3c16966a5c7670894d1f972/quicktex-0.3.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:ecd442c75713e42f701409d99367ae69919fc4e816bb92863a450fc8b5491e7c", size = 9282491, upload-time = "2024-10-17T08:06:21.544Z" },
+    { url = "https://files.pythonhosted.org/packages/77/a4/ebcbf9569c5efe78b46dc373a703ad136760ed76470ea3374ae9e634750f/quicktex-0.3.1-cp312-cp312-win_amd64.whl", hash = "sha256:7dcd3ed782f620af6f05d2bfc881ece60044594a12042bf39c0dcc41f32b3306", size = 3317321, upload-time = "2024-10-17T08:06:23.596Z" },
+    { url = "https://files.pythonhosted.org/packages/13/eb/29e550aecbee95054be1505fecc046be1f7bf0c29594e4d5ef4a43e8101b/quicktex-0.3.1-cp313-cp313-macosx_12_0_arm64.whl", hash = "sha256:777a17cb18fbb601791f0d3738b4f19e5c1022b77af7176f97656b23d3280a33", size = 1044625, upload-time = "2024-10-17T08:06:26.012Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/34/24dd88b351624f8f7abbbe81cc059faf296f35a267e9fd764df99e2c7575/quicktex-0.3.1-cp313-cp313-macosx_12_0_x86_64.whl", hash = "sha256:8fa8a15e38da2330d2693ca6947c5cc543038c3511bed4b4f4c1313843beb03f", size = 1059036, upload-time = "2024-10-17T08:06:27.186Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/75/439c0963802978c4c01e75a150d3923df88d2b5875918a4dcb90433280e8/quicktex-0.3.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:769fb4836aa8f0fefe3a3b9ae0b22104bf525042668aebb1eded53f7168e8328", size = 8167894, upload-time = "2024-10-17T08:06:28.903Z" },
+    { url = "https://files.pythonhosted.org/packages/76/3c/0e2f6c05f56adfbfdcb6e81f6eaa54d8a431672e1fab21dee7c0f45b312a/quicktex-0.3.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:37785ca871fa8fa146a46dc76eee691c64685d6abf3166d5504783b462aa70f2", size = 8251600, upload-time = "2024-10-17T08:06:30.654Z" },
+    { url = "https://files.pythonhosted.org/packages/68/f8/8b6ab9faed514ba96db7ba1f1357c6afaa7406be78efabc2df19e33ac13e/quicktex-0.3.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e9b1894cd093b24507c2c92dfff7273a087359d1db8d85ea149c4b1950f5a9b8", size = 9281774, upload-time = "2024-10-17T08:06:32.741Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/ac/ee25c6abbefbe835d339207a24225e4f143743a39d5c67676ab08624d8b8/quicktex-0.3.1-cp313-cp313-win_amd64.whl", hash = "sha256:fe9356f7625def69bf58c0dd6ee67bba7155d80e39eeb36cac0d79021d3d729e", size = 3325259, upload-time = "2024-10-17T08:06:34.69Z" },
 ]
 
 [[package]]
