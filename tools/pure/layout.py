@@ -6,15 +6,19 @@
   dependencies reach it. Assets no scene reaches are left out.
 
 Inside a file: PreloadData first, then assets by class ID, then GameObjects and components by
-class ID, MonoBehaviours last. Within a class, YAML assets come first by path, then fileID; then
-the objects of imported files (textures, audio, fonts, ...) by GUID.
+class ID, MonoBehaviours last. Within a class, YAML objects come first by fileID, then asset path
+(so a prefab's objects mix with other prefabs'); then the objects of imported files (textures,
+audio, fonts, ...) by GUID.
 """
 
 import re
+from functools import cache
 
 import unityyaml
-from assets import GUID, AssetDB
-from paths import PROJECT
+from assets import GUID, REF, AssetDB
+from paths import EDITOR_DATA, PROJECT
+
+BUILTIN_EXTRA = '0000000000000000f000000000000000'
 
 # Classes the player never reads: editor data (lighting data, the animator's states and
 # transitions), the prefab object of legacy prefabs, and what the PS Vita lacks (compute shaders,
@@ -36,6 +40,19 @@ def always_included_shaders(project=PROJECT):
     text = (project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
     block = text.split('m_AlwaysIncludedShaders:')[1].split('m_PreloadedShaders')[0]
     return set(GUID.findall(block))
+
+
+@cache
+def builtin_extra():
+    """fileID -> (class ID, the fileID of its shader if a material) for the editor's built-in extra resources."""
+    import UnityPy
+
+    env = UnityPy.load(str(EDITOR_DATA / 'Resources' / 'unity_builtin_extra'))
+    out = {}
+    for pid, o in next(iter(env.files.values())).objects.items():
+        shader = o.read_typetree()['m_Shader']['m_PathID'] if o.type.name == 'Material' else None
+        out[pid] = (o.class_id, shader)
+    return out
 
 
 def rank(class_id):
@@ -71,6 +88,39 @@ class Layout:
             self.referenced |= refs
         for a in self.db.by_guid.values():
             self.referenced |= a.object_refs
+        self.place_builtins(project)
+
+    def place_builtins(self, project):
+        """Built-in extra resources the game's content uses are copied into the first file that uses
+        them; the ones GraphicsSettings names for the engine stay in unity_builtin_extra, except the
+        default sprite material, which goes to globalgamemanagers.assets with its shader."""
+        graphics = (project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
+        sprites_default = re.search(r'm_SpritesDefaultMaterial: \{fileID: (\d+)', graphics)
+        engine = {int(fid) for fid, g in REF.findall(graphics) if g == BUILTIN_EXTRA}
+        table = builtin_extra()
+        self.builtin_file = {}
+
+        def place(fid, file_name):
+            if fid in self.builtin_file or fid in engine - {default} or fid not in table:
+                return
+            self.builtin_file[fid] = file_name
+            shader = table[fid][1]
+            if shader and shader not in engine:
+                place(shader, file_name)
+
+        default = int(sprites_default[1]) if sprites_default else None
+        if default:
+            place(default, 'globalgamemanagers.assets')
+        files = ['globalgamemanagers.assets'] + [f'sharedassets{i}.assets' for i in range(len(self.scenes))]
+        files.append('resources.assets')
+        uses = {}
+        for g, f in self.file_of.items():
+            for ref, fid in self.db.by_guid[g].object_refs:
+                if ref == BUILTIN_EXTRA:
+                    uses.setdefault(f, set()).add(fid)
+        for f in files:
+            for fid in sorted(uses.get(f, ())):
+                place(fid, f)
 
     def scene_object_refs(self, project):
         from assets import REF
@@ -96,11 +146,16 @@ class Layout:
                     continue
                 out.append((g, fid, cid))
 
+        table = builtin_extra()
+        out += [(BUILTIN_EXTRA, fid, table[fid][0]) for fid, f in self.builtin_file.items() if f == file_name]
+
         def key(o):
             g, fid, cid = o
+            if g == BUILTIN_EXTRA:
+                return (rank(cid), 0, fid, '')
             a = self.db.by_guid[g]
             if not a.is_yaml:
                 return (rank(cid), 1, g, fid)
-            return (rank(cid), 0, a.path, fid)
+            return (rank(cid), 0, fid, a.path)
 
         return sorted(out, key=key)

@@ -100,11 +100,14 @@ class Converter:
         if t.startswith('PPtr<'):
             return self.ctx.pptr(y, node)
         if t == 'TypelessData':
-            return bytes.fromhex(y) if isinstance(y, str) else bytes(y)
+            return bytes.fromhex(y.strip()) if isinstance(y, str) else bytes(y)
         if t in ('vector', 'staticvector', 'set', 'map'):
             return self.array(node, y, path)
         if t == 'pair':
             first, second = node.m_Children
+            if isinstance(y, dict) and 'first' not in y and len(y) == 1:
+                ((k, v),) = y.items()  # written as {first: second}
+                y = {'first': k, 'second': v}
             return (
                 self.value(first, y.get('first'), path + '.first'),
                 self.value(second, y.get('second'), path + '.second'),
@@ -112,9 +115,16 @@ class Converter:
         return self.struct(node, y, path)
 
     def struct(self, node, y, path):
+        if node.m_Type == 'GUID' and isinstance(y, str):
+            return guid_words(y)
         if not isinstance(y, dict):
             raise TypeError(f'{path}: expected a mapping for {node.m_Type}, got {y!r:.60}')
-        return {c.m_Name: self.value(c, y.get(c.m_Name), f'{path}.{c.m_Name}') for c in node.m_Children}
+        out = {}
+        for c in node.m_Children:
+            # YAML writes typeless data as a size field and a sibling _typelessdata hex string
+            v = y.get('_typelessdata', '') if c.m_Type == 'TypelessData' else y.get(c.m_Name)
+            out[c.m_Name] = self.value(c, v, f'{path}.{c.m_Name}')
+        return out
 
     def array(self, node, y, path):
         array = node.m_Children[0]
@@ -145,6 +155,15 @@ FORMATS = {
     'unsigned short': 'H', 'int': 'i', 'SInt32': 'i', 'unsigned int': 'I', 'UInt32': 'I', 'SInt64': 'q',
     'long long': 'q', 'UInt64': 'Q', 'unsigned long long': 'Q', 'float': 'f', 'double': 'd',
 }  # fmt: skip
+
+
+def guid_words(text):
+    """A GUID as Unity writes it (32 hex digits, each word's nibbles low first) -> its four words."""
+    words = {}
+    for i in range(4):
+        part = text[8 * i : 8 * i + 8]
+        words[f'data[{i}]'] = sum(int(c, 16) << (4 * j) for j, c in enumerate(part))
+    return words
 
 
 def hex_elements(text, element):

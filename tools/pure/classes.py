@@ -76,3 +76,14 @@ def rect_transform(d, doc, project, scene):
 FIXUPS = {1: game_object, 157: lightmap_settings, 199: particle_renderer, 224: rect_transform}
 for _cid in RENDERERS - {199}:
     FIXUPS[_cid] = renderer
+
+
+def sprite(d, doc, asset):
+    # The build keys a sprite's render data by the sprite's own asset and fileID.
+    import convert
+
+    d['m_RenderDataKey'] = (convert.guid_words(asset.guid), doc.file_id)
+
+
+# Fixups that need the asset the object comes from: f(release dict, YAML doc, Asset).
+ASSET_FIXUPS = {213: sprite}

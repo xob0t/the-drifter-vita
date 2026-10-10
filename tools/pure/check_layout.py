@@ -41,6 +41,9 @@ def our_sequence(layout, file_name):
     out = []
     names = {}
     for g, fid, cid in layout.objects(file_name):
+        if g not in layout.db.by_guid:
+            out.append((cid, '' if cid == 48 else {10754: 'Sprites-Default', 10758: 'Sprites-Mask'}.get(fid, str(fid))))
+            continue
         a = layout.db.by_guid[g]
         name = ''
         if cid not in COMPONENT_CLASSES:
