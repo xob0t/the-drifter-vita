@@ -456,12 +456,13 @@ def tail_bytes(b):
 
 
 def names(b):
-    """The names a subprogram adds to its pass's name table, in order of first use."""
-    out = [n for n, _, _ in b.cbuffers]
+    """The names a subprogram adds to its pass's name table, in order of first use: its bindings
+    as the record lists them (textures, then constant buffers), the constant buffers' parameters,
+    then buffers and UAVs. The keywords follow (the caller adds them)."""
+    out = [t[0] for t in b.textures] + [n for n, _ in b.cb_bindings]
     for _, _, params in b.cbuffers:
         out += [p[0] for p in params]
-    out += [t[0] for t in b.textures] + [n for n, _ in b.buffers] + [n for n, _ in b.uavs]
-    return out
+    return out + [n for n, _ in b.buffers] + [n for n, _ in b.uavs]
 
 
 def unity_lists(b, nameidx):
@@ -580,6 +581,22 @@ class Compiled:
     code: bytes  # the record's program code: Unity's header and the stripped DXBC
     tail: bytes
     gpu_type: int
+    stats: tuple = (0, 0, 0, 0)  # the record's ALU, texture, flow control and temp register counts
+
+
+def stats(dxbc):
+    """(ALU, TEX, flow, temps) for the subprogram record, from the compiler's STAT chunk: float,
+    int and uint instructions; plain texture samples (loads, comparison, bias and gradient
+    samples not counted); static and dynamic flow control without the closing ret; temp
+    registers."""
+    stat = chunks(dxbc).get('STAT')
+    if stat is None:
+        return (0, 0, 0, 0)
+    w = struct.unpack_from(f'<{len(stat) // 4}I', stat)
+    alu = w[4] + w[5] + w[6]
+    tex = w[14]
+    flow = max(w[7] + w[8] - 1, 0)
+    return (alu, tex, flow, w[1])
 
 
 # Keywords that raise a snippet's requirements to target 3.0 (the snippet's m_KeywordTargetInfo,
@@ -611,7 +628,7 @@ def compile_program(
     if dxbc is None:
         return None, log
     b = derive(dxbc, stage)
-    return Compiled(b, b.header + strip(dxbc), tail_bytes(b), GPU_TYPES[(stage, sm)]), log
+    return Compiled(b, b.header + strip(dxbc), tail_bytes(b), GPU_TYPES[(stage, sm)], stats(dxbc)), log
 
 
 # ---------------------------------------------------------------------------------------------

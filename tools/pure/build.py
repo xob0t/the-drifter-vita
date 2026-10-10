@@ -1,22 +1,32 @@
-"""Build the PS Vita player's data from the translated project, without Unity.
+"""Build a player's data from the translated project, without Unity.
 
-    uv run tools/pure/build.py [--out dir] [--only level0,sharedassets1.assets,...] [--compare]
+    uv run tools/pure/build.py [--platform vita|windows] [--out dir] [--only level0,...] [--compare]
 
-Writes Media/ under the output folder. --compare checks every written file against the
-reference build byte for byte and reports the first difference.
+Writes Media/ (PS Vita) or TheDrifter_Data/ (Windows) under the output folder. --compare checks
+every written file against the platform's reference build byte for byte and reports the first
+difference.
+
+Targets: 'vita' builds work/drifter-<version>-vita for the PS Vita (header platform 30);
+'windows' builds the PC project work/drifter-<version> for Windows x64 (header platform 19), with
+Direct3D 11 shaders, PCM audio and the Windows managers (windows_build.py registers the class
+builders in IMPORTED_FOR['windows']).
 """
 
 import argparse
 import collections
 import sys
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 import animation
 import audio
 import builtin_copies
+import builtin_extra
 import classes
 import convert
+import imported
 import managers
 import mixer
 import paths
@@ -30,6 +40,55 @@ from placement import AssetContext, Placement, first_path_id
 from writer import SerializedWriter, TypeHashes
 
 DEFAULT_RESOURCES = '0000000000000000e000000000000000'
+WINDOWS_PLAYER = paths.EDITOR_DATA / 'PlaybackEngines' / 'windowsstandalonesupport' / 'Variations'
+WINDOWS_PLAYER = WINDOWS_PLAYER / 'win64_nondevelopment_mono'
+
+
+@dataclass(frozen=True)
+class Target:
+    name: str
+    platform: int  # BuildTarget in the serialized files' header
+    project: Path  # the Unity project the data comes from
+    data_dir: str  # the data folder under the output folder
+    reference: Path  # the data folder of the build Unity made, for --compare
+    default_resources: Path  # the player's 'unity default resources' (Texture2D and Sprite hashes)
+    work: Path  # scratch space for caches keyed by path only
+
+
+TARGETS = {
+    'vita': Target(
+        'vita',
+        30,
+        paths.PROJECT,
+        'Media',
+        paths.REFERENCE_MEDIA,
+        paths.PSP2_PLAYER / 'Data' / 'Resources' / 'unity default resources',
+        paths.WORK,
+    ),
+    'windows': Target(
+        'windows',
+        19,
+        paths.common.WORK / f'drifter-{paths.TARGET}',
+        'TheDrifter_Data',
+        paths.ROOT / 'builds' / f'drifter-{paths.TARGET}' / 'TheDrifter_Data',
+        WINDOWS_PLAYER / 'Data' / 'Resources' / 'unity default resources',
+        paths.WORK / 'windows',
+    ),
+}
+
+
+def use_target(target):
+    """Point the modules that read paths.PROJECT at call time, or keep caches keyed by path
+    under paths.WORK, at the target's project and scratch folder. The PS Vita target leaves them
+    as they are; one process builds one target."""
+    if target.name == 'vita':
+        return
+    import assets
+
+    target.work.mkdir(parents=True, exist_ok=True)
+    assets.PROJECT, assets.WORK = target.project, target.work  # Asset.docs, the asset index cache
+    scriptlib.WORK = target.work  # Scripts.managed copies the project's DLLs here
+    managers.WORK = target.work  # managers.managed_folder
 
 
 class SceneContext(AssetContext):
@@ -49,20 +108,24 @@ class SceneContext(AssetContext):
 
 
 class Build:
-    def __init__(self, out):
+    def __init__(self, out, platform='vita'):
+        self.target = TARGETS[platform]
+        use_target(self.target)
+        self.root = self.target.project  # the Unity project; class builders read assets under it
         self.out = out
         self.streams = {}  # '<file>.resS' / '<file>.resource' -> bytearray the class builders append to
-        self.media = out / 'Media'
-        self.layout = Layout()
+        self.media = out / self.target.data_dir
+        self.layout = Layout(project=self.root)
         shared = [f'sharedassets{i}.assets' for i in range(len(self.layout.scenes))]
         self.files = [*shared, 'resources.assets', 'globalgamemanagers.assets']
         self.placement = Placement(self.layout, self.files)
-        self.scripts = scriptlib.Scripts()
-        self.project = classes.Project(paths.PROJECT)
-        self.entries = managers.monoscripts(self.layout)
+        self.scripts = scriptlib.Scripts(self.root)
+        self.project = classes.Project(self.root)
+        self.entries = managers.monoscripts(self.layout, self.root)
         self.monoscripts = managers.monoscript_ids(self.entries)
         managers.register(self.placement, self.layout, self.entries)
-        self.preloader = preloadlib.Preload(self.layout, self.placement)
+        self.preloader = preloadlib.Preload(self.layout, self.placement, self.root)
+        self.imported = self.IMPORTED_FOR[platform]
         self.trees = {}
         version = convert.VERSION
 
@@ -71,15 +134,14 @@ class Build:
             asm, ns, name = script
             return typehash.script_id(name, ns, asm), typehash.script_hash(model, version), self.monoscripts[script]
 
-        self.hashes = TypeHashes(script_info, self.texture_sprite_hashes())
+        self.hashes = TypeHashes(script_info, self.texture_sprite_hashes(self.target.default_resources))
 
     @staticmethod
-    def texture_sprite_hashes():
+    def texture_sprite_hashes(player=TARGETS['vita'].default_resources):
         """Texture2D and Sprite type hashes. UnityPy's TPK trees for these two differ from the
-        player's, so they come from the PS Vita player's own unity default resources."""
+        player's, so they come from the player's own unity default resources."""
         from container import parse_serialized
 
-        player = paths.PSP2_PLAYER / 'Data' / 'Resources' / 'unity default resources'
         out = {}
         for t in parse_serialized(player.read_bytes()).types:
             if t.class_id in (28, 213):
@@ -94,13 +156,13 @@ class Build:
 
     def level(self, index):
         name = f'level{index}'
-        sc = scenelib.Scene(paths.PROJECT / self.layout.scenes[index]['path'])
+        sc = scenelib.Scene(self.root / self.layout.scenes[index]['path'])
         objects = sc.objects()
         pid_of = {o.doc.file_id: o.path_id for o in objects}
         ctx = SceneContext(self.placement, name, pid_of, self.scripts, self.monoscripts)
         mbs = [o.doc for o in objects if o.doc.class_id == 114]
         self.scripts.load_models({self.scripts.resolve(d.fields['m_Script'], d.fields) for d in mbs} - {None})
-        out = SerializedWriter(name)
+        out = SerializedWriter(name, self.target.platform)
         for o in objects:
             cid, doc = o.doc.class_id, o.doc
             tree, script = None, None
@@ -116,14 +178,17 @@ class Build:
 
     # Builders the other modules provide, by class: f(build, file_name, guid, file_id, asset) ->
     # (data, tree) or None while that class is not done yet. Stream data goes through self.streams.
+    # IMPORTED is the PS Vita's table; a build uses IMPORTED_FOR[its platform] (windows_build.py
+    # fills the Windows one).
     IMPORTED: ClassVar[dict] = {}
+    IMPORTED_FOR: ClassVar[dict] = {'vita': IMPORTED, 'windows': {}}
 
     def shared(self, file_name):
         """A sharedassetsN.assets / resources.assets / globalgamemanagers.assets file. Returns (bytes,
         classes that could not be built yet)."""
         objects = self.layout.objects(file_name)
         start = first_path_id(file_name)
-        out = SerializedWriter(file_name)
+        out = SerializedWriter(file_name, self.target.platform)
         missing = collections.Counter()
         if start == 2:  # sharedassetsN.assets and globalgamemanagers.assets open with their PreloadData
             out.add(1, 150, self.preloader.preload(file_name))
@@ -155,8 +220,8 @@ class Build:
                         classes.FIXUPS[cid](data, doc, self.project, None)
                     if cid in classes.ASSET_FIXUPS:
                         classes.ASSET_FIXUPS[cid](data, doc, a)
-            elif cid in self.IMPORTED:
-                made = self.IMPORTED[cid](self, file_name, g, fid, a)
+            elif cid in self.imported:
+                made = self.imported[cid](self, file_name, g, fid, a)
                 if made:
                     data, tree = made
             if data is None:
@@ -166,8 +231,14 @@ class Build:
         return out.write(self.hashes), missing
 
     def globalgamemanagers(self):
-        out = SerializedWriter('globalgamemanagers')
-        for path_id, class_id, data in managers.managers(self.layout, self.placement, self.entries):
+        out = SerializedWriter('globalgamemanagers', self.target.platform)
+        if self.target.name == 'windows':
+            import windows_managers
+
+            objects = windows_managers.managers(self.layout, self.placement, self.entries, self.root)
+        else:
+            objects = managers.managers(self.layout, self.placement, self.entries)
+        for path_id, class_id, data in objects:
             out.add(path_id, class_id, data)
         return out.write(self.hashes)
 
@@ -180,10 +251,11 @@ class Build:
 Build.IMPORTED[83] = audio.imported
 Build.IMPORTED[48] = shader_object.imported
 Build.IMPORTED[21] = builtin_copies.material
+imported.register(Build)  # textures, sprites, fonts, font materials, text assets
 
 
-def compare(name, data):
-    ref = (paths.REFERENCE_MEDIA / name).read_bytes()
+def compare(name, data, reference=paths.REFERENCE_MEDIA):
+    ref = (reference / name).read_bytes()
     if ref == data:
         return 'identical'
     first = next((i for i, (a, b) in enumerate(zip(ref, data, strict=False)) if a != b), min(len(ref), len(data)))
@@ -192,11 +264,18 @@ def compare(name, data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--out', type=lambda p: __import__('pathlib').Path(p), default=paths.OUT)
+    parser.add_argument('--platform', choices=sorted(TARGETS), default='vita')
+    parser.add_argument('--out', type=Path, help='default: builds/drifter-<version>-vita-pure, -pure for windows')
     parser.add_argument('--only', default='')
     parser.add_argument('--compare', action='store_true')
     args = parser.parse_args()
-    build = Build(args.out)
+    if args.platform == 'windows':
+        import windows_build
+
+        windows_build.register(Build)
+    out = args.out or (paths.OUT if args.platform == 'vita' else paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-pure')
+    build = Build(out, args.platform)
+    ref = build.target.reference
     only = set(filter(None, args.only.split(',')))
     for i in range(len(build.layout.scenes)):
         name = f'level{i}'
@@ -205,7 +284,7 @@ def main():
         start = time.time()
         data = build.level(i)
         build.write(name, data)
-        note = compare(name, data) if args.compare else ''
+        note = compare(name, data, ref) if args.compare else ''
         print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}')
     for name in build.files:
         if only and name not in only:
@@ -213,16 +292,28 @@ def main():
         start = time.time()
         data, missing = build.shared(name)
         build.write(name, data)
-        note = compare(name, data) if args.compare else ''
+        note = compare(name, data, ref) if args.compare else ''
         gaps = f'; not built yet: {dict(missing)}' if missing else ''
         print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
+    if not only or 'Resources/unity_builtin_extra' in only:
+        if build.target.name == 'windows':
+            import windows_builtin_extra
+
+            data = windows_builtin_extra.build_extra(build)
+        else:
+            data = builtin_extra.build_extra(build)
+        build.write('Resources/unity_builtin_extra', data)
+        note = compare('Resources/unity_builtin_extra', data, ref) if args.compare else ''
+        print(f'Resources/unity_builtin_extra: {len(data)} bytes {note}')
     if not only or 'globalgamemanagers' in only:
         data = build.globalgamemanagers()
         build.write('globalgamemanagers', data)
-        print(f'globalgamemanagers: {len(data)} bytes', compare('globalgamemanagers', data) if args.compare else '')
+        print(
+            f'globalgamemanagers: {len(data)} bytes', compare('globalgamemanagers', data, ref) if args.compare else ''
+        )
     for name, data in build.streams.items():
         build.write(name, bytes(data))
-        note = compare(name, bytes(data)) if args.compare else ''
+        note = compare(name, bytes(data), ref) if args.compare else ''
         print(f'{name}: {len(data)} bytes {note}')
     return 0
 
