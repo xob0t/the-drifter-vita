@@ -41,11 +41,23 @@ def renderer(d, doc, project, scene):
         d[name] = {'x': 1.0, 'y': 1.0, 'z': 0.0, 'w': 0.0}
 
 
+def sprite_renderer(d, doc, project, scene):
+    renderer(d, doc, project, scene)
+    # Loading a renderer whose sprite is gone (room templates lose theirs) clears the flag.
+    d['m_WasSpriteAssigned'] = bool(d['m_Sprite']['m_PathID'])
+
+
 def particle_renderer(d, doc, project, scene):
     renderer(d, doc, project, scene)
     # The second material slot is the trail material.
     while len(d['m_Materials']) < 2:
         d['m_Materials'].append({'m_FileID': 0, 'm_PathID': 0})
+
+
+def particle_system(d, doc, project, scene):
+    # 2018's startDelay is a constant or a random pick between two: its curves are not kept.
+    for curve in ('maxCurve', 'minCurve'):
+        d['startDelay'][curve]['m_Curve'] = []
 
 
 def game_object(d, doc, project, scene):
@@ -73,8 +85,9 @@ def rect_transform(d, doc, project, scene):
     d['m_Pivot'] = {'x': 0.5, 'y': 0.5}
 
 
-FIXUPS = {1: game_object, 157: lightmap_settings, 199: particle_renderer, 224: rect_transform}
-for _cid in RENDERERS - {199}:
+FIXUPS = {1: game_object, 157: lightmap_settings, 198: particle_system, 199: particle_renderer, 212: sprite_renderer}
+FIXUPS[224] = rect_transform
+for _cid in RENDERERS - {199, 212}:
     FIXUPS[_cid] = renderer
 
 

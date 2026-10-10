@@ -10,6 +10,7 @@ import argparse
 import collections
 import sys
 
+import animation
 import classes
 import convert
 import paths
@@ -17,6 +18,16 @@ import scripts as scriptlib
 import UnityPy
 from layout import Layout
 from placement import AssetContext, Placement, first_path_id, same
+
+
+def reference_monoscripts():
+    env = UnityPy.load(str(paths.REFERENCE_MEDIA / 'globalgamemanagers.assets'))
+    out = {}
+    for o in env.objects:
+        if o.type.name == 'MonoScript':
+            t = o.read_typetree()
+            out[(t['m_AssemblyName'], t['m_Namespace'], t['m_ClassName'])] = o.path_id
+    return out
 
 
 def main():
@@ -31,6 +42,7 @@ def main():
     placement = Placement(layout, everything)
     project = classes.Project(paths.PROJECT)
     lib = scriptlib.Scripts()
+    monoscripts = reference_monoscripts()  # until managers builds globalgamemanagers.assets
     trees = {}
     totals, examples = collections.Counter(), collections.defaultdict(list)
     for f in args.files or [*shared, 'resources.assets']:
@@ -74,8 +86,14 @@ def main():
             except Exception as error:
                 totals[(cid, 'reference does not read', str(error)[:50])] += 1
                 continue
+            ctx = AssetContext(placement, f, g, lib, monoscripts)
             try:
-                mine, _ = convert.convert(cid, doc.fields, AssetContext(placement, f, g), tree)
+                if cid == 74:
+                    mine = animation.clip(doc, ctx)
+                elif cid == 91:
+                    mine = animation.controller(doc, ctx, a, layout.db)
+                else:
+                    mine, _ = convert.convert(cid, doc.fields, ctx, tree)
             except (TypeError, ValueError, KeyError) as error:
                 totals[(cid, 'convert error', str(error)[:70])] += 1
                 continue

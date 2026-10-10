@@ -13,7 +13,7 @@ DEFAULT_RESOURCES = '0000000000000000e000000000000000'
 
 
 def first_path_id(file_name):
-    return 2 if file_name.startswith('sharedassets') else 1
+    return 2 if file_name.startswith('sharedassets') or file_name == 'globalgamemanagers.assets' else 1
 
 
 class Placement:
@@ -33,19 +33,31 @@ class Placement:
             return ('resources/unity_builtin_extra', fid)
         if guid == DEFAULT_RESOURCES:
             return ('library/unity default resources', fid)
-        return self.where.get((guid, fid), ('?', f'{guid}:{fid}'))
+        # Not written by the build (editor-only classes, compute shaders, unused sub-objects): the
+        # player reads the reference as null.
+        return (None, 0)
 
 
 class AssetContext:
-    def __init__(self, placement, file_name, guid):
+    """Resolves an asset's YAML references: to (file, path ID) through the placement, and script
+    references (m_Script, script-bound curves) to MonoScripts in globalgamemanagers.assets through
+    `monoscripts` {(assembly, namespace, class): path ID} when `scripts` is given."""
+
+    def __init__(self, placement, file_name, guid, scripts=None, monoscripts=None):
         self.placement, self.file, self.guid = placement, file_name, guid
+        self.scripts, self.monoscripts = scripts, monoscripts or {}
 
     def pptr(self, ref, node):
         fid = int(ref.get('fileID', 0))
         if fid == 0:
             return {'m_FileID': 0, 'm_PathID': 0}
         guid = ref.get('guid', self.guid)
+        if self.scripts is not None and guid in self.scripts.assemblies:
+            pid = self.monoscripts.get(self.scripts.resolve(ref), 0)
+            return {'m_FileID': 0, 'm_PathID': pid, 'file': 'globalgamemanagers.assets'}
         f, pid = self.placement.find(guid, fid)
+        if f is None:
+            return {'m_FileID': 0, 'm_PathID': 0}
         return {'m_FileID': 0, 'm_PathID': pid, 'file': f}
 
 

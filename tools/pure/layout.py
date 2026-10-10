@@ -6,9 +6,9 @@
   dependencies reach it. Assets no scene reaches are left out.
 
 Inside a file: PreloadData first, then assets by class ID, then GameObjects and components by
-class ID, MonoBehaviours last. Within a class, YAML objects come first by fileID, then asset path
-(so a prefab's objects mix with other prefabs'); then the objects of imported files (textures,
-audio, fonts, ...) by GUID.
+class ID, MonoBehaviours last. Within a class, YAML objects come first: those of assets before
+those of prefabs, each by fileID then asset path (so a prefab's objects mix with other prefabs');
+then the objects of imported files (textures, audio, fonts, ...) by GUID.
 """
 
 import re
@@ -152,10 +152,10 @@ class Layout:
         def key(o):
             g, fid, cid = o
             if g == BUILTIN_EXTRA:
-                return (rank(cid), 0, fid, '')
+                return (rank(cid), 0, False, fid, '')
             a = self.db.by_guid[g]
             if not a.is_yaml:
                 return (rank(cid), 1, g, fid)
-            return (rank(cid), 0, fid, a.path)
+            return (rank(cid), 0, a.ext == '.prefab', fid, a.path)
 
         return sorted(out, key=key)
