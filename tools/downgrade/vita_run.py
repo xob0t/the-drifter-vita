@@ -39,17 +39,18 @@ def main():
     out = pipeline.ROOT / 'artifacts' / 'vita' / 'runs' / args.tag
     out.mkdir(parents=True, exist_ok=True)
     vita.keep_awake()
-    if not args.no_upload:
-        vita_sweep.upload_save(args.save)
-    status = vita_sweep.run(flags, ['events.txt', 'screenshot.raw'], args.timeout)
-    if status == 'done':
-        vita.screenshot(out / 'screen.png')
-    for name in ['log.txt', 'events.txt']:
-        try:
-            (out / name).write_bytes(vita.read(f'{vita.REMOTE}/{name}'))
-        except vita.FTP_ERRORS as error:
-            print(f'{name}: {error}')
-    vita.write(f'{vita.REMOTE}/args.txt', b'')
+    with vita_sweep.saves_kept():
+        if not args.no_upload:
+            vita_sweep.upload_save(args.save)
+        status = vita_sweep.run(flags, ['events.txt', 'screenshot.raw'], args.timeout)
+        if status == 'done':
+            vita.screenshot(out / 'screen.png')
+        for name in ['log.txt', 'events.txt']:
+            try:
+                (out / name).write_bytes(vita.read(f'{vita.REMOTE}/{name}'))
+            except vita.FTP_ERRORS as error:
+                print(f'{name}: {error}')
+        vita.write(f'{vita.REMOTE}/args.txt', b'')
     print(f'{args.tag}: {status}; {out}')
     return 0 if status == 'done' else 1
 

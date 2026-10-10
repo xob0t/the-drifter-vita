@@ -63,19 +63,7 @@ def phase(name, seconds, start, stop, report):
         print(heartbeats.without_cams(beat)[:SHOWN_CHARACTERS])
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--save', type=int, default=2)
-    parser.add_argument('--room')
-    parser.add_argument('--idle', type=float, default=15)
-    parser.add_argument('--walk', type=float, default=8)
-    parser.add_argument('--tag', default='room')
-    parser.add_argument(
-        '--plan',
-        help=f'phases as name:seconds,... ({", ".join(MOVES)}); default idle, walk right, walk left, idle',
-    )
-    args, extra = parser.parse_known_args()
-    vita.keep_awake()
+def profile(args, extra):
     vita_sweep.upload_save(args.save)
     flags = ' '.join([*sweep.room_flags(args.save, args.room), '-diag-time-scripts', *extra])
     vita.command('quit all; wait 2s')
@@ -100,6 +88,24 @@ def main():
         name, seconds = step.split(':')
         phase(name, float(seconds), *MOVES[name], report)
     vita.write(f'{vita.REMOTE}/args.txt', b'')
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--save', type=int, default=2)
+    parser.add_argument('--room')
+    parser.add_argument('--idle', type=float, default=15)
+    parser.add_argument('--walk', type=float, default=8)
+    parser.add_argument('--tag', default='room')
+    parser.add_argument(
+        '--plan',
+        help=f'phases as name:seconds,... ({", ".join(MOVES)}); default idle, walk right, walk left, idle',
+    )
+    args, extra = parser.parse_known_args()
+    vita.keep_awake()
+    with vita_sweep.saves_kept():
+        report = profile(args, extra)
     out = pipeline.ROOT / 'artifacts' / 'vita' / f'profile-{args.tag}.txt'
     out.write_text('\n'.join(report) + '\n', encoding='utf-8')
     print('wrote', out)

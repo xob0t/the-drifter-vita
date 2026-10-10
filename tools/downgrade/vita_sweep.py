@@ -1,6 +1,6 @@
 """Visit every room on the PS Vita and record how it runs.
 
-    uv run tools/downgrade/vita_sweep.py [--save 2] [--seconds 8] [--timeout 300] [--reference tag]
+    uv run tools/downgrade/vita_sweep.py [--save 2] [--seconds 8] [--timeout 300] [--reference tag] [--restore-saves]
                                          [rooms...] [probe flags...]
 
 Needs an installed diag build (pipeline.py --platform vita --diag, vita.py run).
@@ -11,6 +11,11 @@ artifacts/vita/rooms.tsv and artifacts/vita/rooms/<room>.png, with the mean
 absolute difference against the PC original's frame of the same room
 (artifacts/parity/<--reference>/room-<room>/original/frame.png, from sweep.py) when
 that exists. The save is uploaded to the folder the game reads saves from.
+
+The player's own saves are safe: the save folder is copied to artifacts/vita/save-backup/<time>/
+before the run and put back after it (the game is quit first, files the run added are deleted).
+vita_run.py and profile_room.py do the same. If a run is killed before it restores, the next run
+restores first; --restore-saves does only that.
 """
 
 import argparse
@@ -49,8 +54,71 @@ def save_folder():
     return SAVE_FOLDER.read_text().strip()
 
 
+SAVE_BACKUPS = OUT / 'save-backup'
+# Names the backup a run has not put back yet: a run that was killed leaves it for the next run
+# (or --restore-saves) to restore before anything else touches the saves.
+PENDING_RESTORE = SAVE_BACKUPS / 'pending.txt'
+
+
+def ftp_folder():
+    return re.sub(r'^(\w+:)/*', r'\1/', save_folder())  # the FTP server wants device:/path
+
+
+def save_files(connection, folder):
+    return [name for name, facts in connection.mlsd(folder, facts=['type']) if facts.get('type') == 'file']
+
+
+def back_up_saves():
+    """Copies the console's save folder to artifacts/vita/save-backup/<time>/ and marks it to be
+    put back. A run restores saves, changes rooms and autosaves, all into the player's own slots."""
+    restore_saves()  # a killed run's leftovers go first, so the backup is the player's saves
+    folder = ftp_folder()
+    backup = SAVE_BACKUPS / time.strftime('%Y%m%d-%H%M%S')
+    backup.mkdir(parents=True)
+    with vita.ftp() as connection:
+        vita.makedirs(connection, folder, set())
+        for name in save_files(connection, folder):
+            with open(backup / name, 'wb') as handle:
+                connection.retrbinary(f'RETR {folder}/{name}', handle.write)
+    PENDING_RESTORE.write_text(backup.name)
+    pipeline.log(f'Backed up {len(list(backup.iterdir()))} save files from {folder} to {backup}')
+
+
+def restore_saves():
+    """Quits the game and puts the console's save folder back as the pending backup had it:
+    the backed-up files are uploaded and files the run added are deleted."""
+    if not PENDING_RESTORE.exists():
+        return
+    backup = SAVE_BACKUPS / PENDING_RESTORE.read_text().strip()
+    folder = ftp_folder()
+    # A running game could autosave over the restored files.
+    with contextlib.suppress(Exception):
+        vita.command('quit all; wait 2s')
+    kept = {p.name for p in backup.iterdir()}
+    with vita.ftp() as connection:
+        for name in save_files(connection, folder):
+            if name not in kept:
+                connection.delete(f'{folder}/{name}')
+        for name in sorted(kept):
+            with open(backup / name, 'rb') as handle:
+                connection.storbinary(f'STOR {folder}/{name}', handle)
+    PENDING_RESTORE.unlink()
+    pipeline.log(f'Restored {len(kept)} save files to {folder} from {backup}')
+
+
+@contextlib.contextmanager
+def saves_kept():
+    """Around a run: the player's saves are backed up first and put back afterwards, also when
+    the run fails."""
+    back_up_saves()
+    try:
+        yield
+    finally:
+        restore_saves()
+
+
 def upload_save(slot):
-    folder = re.sub(r'^(\w+:)/*', r'\1/', save_folder())  # the FTP server wants device:/path
+    folder = ftp_folder()
     data = (pipeline.DEFAULT_GAME / f'Save{slot}.sav').read_bytes()
     with vita.ftp() as connection:
         vita.makedirs(connection, folder, set())
@@ -199,6 +267,9 @@ def main():
     parser.add_argument('--seconds', type=float, default=8, help='seconds in the room before the dump')
     parser.add_argument('--timeout', type=float, default=300, help='seconds to wait for each room')
     parser.add_argument(
+        '--restore-saves', action='store_true', help="only put back the console's saves a killed run left changed"
+    )
+    parser.add_argument(
         '--reference', default='il2cpp19', help='sweep.py tag under artifacts/parity/ with the PC frames'
     )
     # Extra probe or Compat flags (e.g. -compat-crt-mode off) come last, as in sweep.py.
@@ -206,8 +277,16 @@ def main():
     cut = next((i for i, arg in enumerate(argv) if sweep.PLAYER_FLAG.match(arg)), len(argv))
     args = parser.parse_args(argv[:cut])
     args.flags = argv[cut:]
+    if args.restore_saves:
+        restore_saves()
+        return
     rooms = args.rooms or sweep.rooms_from_build_settings()
     vita.keep_awake()
+    with saves_kept():
+        sweep_rooms(rooms, args)
+
+
+def sweep_rooms(rooms, args):
     upload_save(args.save)
     columns = ['room', 'status', 'difference', 'fps', 'renderMs', 'otherMs', 'minLPDDR', 'minCDRAM', 'textureMB']
     table = OUT / 'rooms.tsv'
