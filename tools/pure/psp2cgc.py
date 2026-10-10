@@ -62,7 +62,12 @@ def compile(text, shader_dir, stage, entry, target, keywords, sdb=False):
     # were compiled with it: without it, vertex programs that convert floats to ints differ.
     command = [str(PSP2CGC), str(src), '-O3', '-W3', '-fastmath', '-pedantic', '-fx', '-nofastint']
     command += ['-D' + d for d in defines]
-    command += [f'-I{shader_dir}', f'-I{PROJECT}', f'-I{CGINCLUDES}', f'-I{PSP2_PLAYER / "CgBatchPlugins64" / "include"}']
+    command += [
+        f'-I{shader_dir}',
+        f'-I{PROJECT}',
+        f'-I{CGINCLUDES}',
+        f'-I{PSP2_PLAYER / "CgBatchPlugins64" / "include"}',
+    ]
     command += ['-profile', 'sce_vp_psp2' if vertex else 'sce_fp_psp2', '-entry', entry, '-o', str(out)]
     if sdb:
         command += ['-xmlsdb', str(sdb_file)]

@@ -24,7 +24,14 @@ def program_args(path, text, programs, includes, record):
     found = dict(pragmas(''.join(i.body for i in includes if i.lang == p.lang) + p.body))
     stage = 'vp' if record['stage'] == 'progVertex' else 'fp'
     entry = found['vertex' if stage == 'vp' else 'fragment'][0]
-    return (unity_input(text, p, includes), str(path.parent), stage, entry, found.get('target', ['2.5'])[0], record['keywords'])
+    return (
+        unity_input(text, p, includes),
+        str(path.parent),
+        stage,
+        entry,
+        found.get('target', ['2.5'])[0],
+        record['keywords'],
+    )
 
 
 def check(job):
@@ -33,7 +40,7 @@ def check(job):
     if result is None:
         return name, 'compile failed', log[-300:]
     gxp, sdb = result
-    a, gxp_length, _ = struct.unpack_from('<III', record['code'], 0)
+    _a, gxp_length, _ = struct.unpack_from('<III', record['code'], 0)
     reference_gxp = record['code'][12 : 12 + gxp_length]
     gxp = gxp[:16] + reference_gxp[16:20] + gxp[20:]  # the source GUID: a hash of the input's path
     b = bindings.derive(gxp, bindings.attribute_semantics(sdb))
@@ -58,8 +65,7 @@ def main():
         text = path.read_text(encoding='utf-8', newline='')
         programs, includes = scan(text)
         programs = {(p.sub, p.passi): p for p in programs}
-        for record in shader['programs']:
-            jobs.append((shader['name'], record, program_args(path, text, programs, includes, record)))
+        jobs += [(shader['name'], r, program_args(path, text, programs, includes, r)) for r in shader['programs']]
     results = list(ThreadPoolExecutor(16).map(check, jobs))
     counts = collections.Counter(r for _, r, _ in results)
     print(f'{len(jobs)} subprograms: {dict(counts)}')

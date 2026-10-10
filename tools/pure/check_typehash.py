@@ -7,29 +7,27 @@ names, OldTypeHash from the script's field model (typemodel.py) over the editor 
 """
 
 import collections
+import contextlib
 import sys
-
-import UnityPy
 
 import paths
 import reference
 import typehash
 import typemodel
+import UnityPy
 
 MANAGED = paths.PROJECT / 'Library' / 'PlayerDataCache' / 'PSP2' / 'Data' / 'Managed'
 
 
 def full_name(script):
-    return f"{script['m_Namespace']}.{script['m_ClassName']}" if script['m_Namespace'] else script['m_ClassName']
+    return f'{script["m_Namespace"]}.{script["m_ClassName"]}' if script['m_Namespace'] else script['m_ClassName']
 
 
 def main():
     env = UnityPy.Environment()
     for path in reference.media_files():
-        try:
+        with contextlib.suppress(Exception):
             env.load_file(str(path))
-        except Exception:
-            pass
     gga = env.files[str(paths.REFERENCE_MEDIA / 'globalgamemanagers.assets')]
     scripts = {o.path_id: o.read_typetree() for o in gga.objects.values() if o.type.name == 'MonoScript'}
     models = typemodel.models(MANAGED, ((s['m_AssemblyName'], full_name(s)) for s in scripts.values()))

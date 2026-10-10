@@ -1,6 +1,5 @@
 """Paths the Unity-free build reads and writes."""
 
-import os
 import sys
 from pathlib import Path
 

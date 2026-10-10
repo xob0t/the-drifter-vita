@@ -13,9 +13,20 @@ from Crypto.Hash import MD4
 from UnityPy.helpers import Tpk
 
 ALIGN = 0x4000
-PRIM = {'bool': 'UInt8', 'UInt8': 'UInt8', 'SInt8': 'SInt8', 'short': 'SInt16', 'unsigned short': 'UInt16',
-        'int': 'int', 'unsigned int': 'unsigned int', 'long long': 'SInt64', 'unsigned long long': 'UInt64',
-        'float': 'float', 'double': 'double', 'char': 'UInt16'}
+PRIM = {
+    'bool': 'UInt8',
+    'UInt8': 'UInt8',
+    'SInt8': 'SInt8',
+    'short': 'SInt16',
+    'unsigned short': 'UInt16',
+    'int': 'int',
+    'unsigned int': 'unsigned int',
+    'long long': 'SInt64',
+    'unsigned long long': 'UInt64',
+    'float': 'float',
+    'double': 'double',
+    'char': 'UInt16',
+}
 # Unity's own value types: (type name, byte size, version, [(field type, field name, size)])
 F = 'float'
 ENGINE = {
@@ -28,12 +39,22 @@ ENGINE = {
     'Color32': ('ColorRGBA', 4, 2, [('unsigned int', 'rgba', 4)]),
 }
 
+
 class HashBuilder:
     def __init__(self, base):
         self.out = list(base)
 
     def add(self, level, typ, name, size, meta=0, version=1):
-        self.out.append(dict(m_Level=level, m_Type=typ, m_Name=name, m_ByteSize=size, m_Version=version, m_MetaFlag=meta))
+        self.out.append(
+            {
+                'm_Level': level,
+                'm_Type': typ,
+                'm_Name': name,
+                'm_ByteSize': size,
+                'm_Version': version,
+                'm_MetaFlag': meta,
+            }
+        )
 
     def value(self, m, level, name, meta=0):
         k = m['k']
@@ -54,8 +75,16 @@ class HashBuilder:
             self.add(level + 2, 'Array', 'Array', -1, ALIGN)
             self.add(level + 3, 'int', 'size', 4)
             self.add(level + 3, 'Keyframe', 'data', 32, 0, 3)
-            for t, n in (('float', 'time'), ('float', 'value'), ('float', 'inSlope'), ('float', 'outSlope'),
-                         ('int', 'tangentMode'), ('int', 'weightedMode'), ('float', 'inWeight'), ('float', 'outWeight')):
+            for t, n in (
+                ('float', 'time'),
+                ('float', 'value'),
+                ('float', 'inSlope'),
+                ('float', 'outSlope'),
+                ('int', 'tangentMode'),
+                ('int', 'weightedMode'),
+                ('float', 'inWeight'),
+                ('float', 'outWeight'),
+            ):
                 self.add(level + 4, t, n, 4)
             for n in ('m_PreInfinity', 'm_PostInfinity', 'm_RotationOrder'):
                 self.add(level + 1, 'int', n, 4)
@@ -76,13 +105,14 @@ class HashBuilder:
         elif k == 'struct' and m['t'] in ENGINE and m.get('full', '').startswith('UnityEngine.'):
             t, size, ver, fields = ENGINE[m['t']]
             self.add(level, t, name, size, meta, ver)
-            for ft, fn, fs in fields: self.add(level + 1, ft, fn, fs)
+            for ft, fn, fs in fields:
+                self.add(level + 1, ft, fn, fs)
         elif k == 'struct':
             start = len(self.out)
             self.add(level, m['t'], name, -1, meta)
             self.fields(m['fields'], level + 1)
             # A class whose members all have a fixed size gets that size, like Unity's own structs
-            kids = [n for n in self.out[start + 1:] if n['m_Level'] == level + 1]
+            kids = [n for n in self.out[start + 1 :] if n['m_Level'] == level + 1]
             if all(n['m_ByteSize'] >= 0 for n in kids):
                 self.out[start]['m_ByteSize'] = sum(n['m_ByteSize'] for n in kids)
         else:
@@ -90,7 +120,9 @@ class HashBuilder:
 
     def fields(self, fields, level):
         for f in fields:
-            if 'node' in f: self.value(f['node'], level, f['n'])
+            if 'node' in f:
+                self.value(f['node'], level, f['n'])
+
 
 def build(base, model):
     b = HashBuilder(base)
@@ -106,7 +138,16 @@ def tpk_nodes(root):
         nid, level = stack.pop(0)
         n = tpk.NodeBuffer[nid]
         name = tpk.StringBuffer
-        out.append(dict(m_Level=level, m_Type=name[n.TypeName], m_Name=name[n.Name], m_ByteSize=n.ByteSize, m_Version=n.Version, m_MetaFlag=n.MetaFlag))
+        out.append(
+            {
+                'm_Level': level,
+                'm_Type': name[n.TypeName],
+                'm_Name': name[n.Name],
+                'm_ByteSize': n.ByteSize,
+                'm_Version': n.Version,
+                'm_MetaFlag': n.MetaFlag,
+            }
+        )
         stack = [(c, level + 1) for c in n.SubNodes] + stack
     return out
 
@@ -120,7 +161,9 @@ def type_hash(nodes):
     for n in nodes:
         md4.update(n['m_Type'].encode())
         md4.update(n['m_Name'].encode())
-        md4.update(struct.pack('<iiii', n['m_ByteSize'], n['m_Type'] == 'Array', n['m_Version'], n['m_MetaFlag'] & ALIGN))
+        md4.update(
+            struct.pack('<iiii', n['m_ByteSize'], n['m_Type'] == 'Array', n['m_Version'], n['m_MetaFlag'] & ALIGN)
+        )
     return md4.digest()
 
 

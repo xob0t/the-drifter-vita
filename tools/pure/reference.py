@@ -4,7 +4,6 @@ import struct
 
 import lz4.block
 import UnityPy
-
 from paths import REFERENCE_MEDIA
 
 
@@ -31,7 +30,9 @@ def parse_blob(data):
         code_length = struct.unpack_from('<I', s, p)[0]
         code = s[p + 4 : p + 4 + code_length]
         p = (p + 4 + code_length + 3) & ~3
-        subs.append(dict(version=version, type=gpu_type, keywords=keywords, code=code, tail=s[p:], record=s))
+        subs.append(
+            {'version': version, 'type': gpu_type, 'keywords': keywords, 'code': code, 'tail': s[p:], 'record': s}
+        )
     return subs
 
 
@@ -49,16 +50,33 @@ def shaders():
                 continue
             tree = obj.read_typetree()
             blob = bytes(tree['compressedBlob'])
-            raw = lz4.block.decompress(blob[: tree['compressedLengths'][0]], uncompressed_size=tree['decompressedLengths'][0])
+            raw = lz4.block.decompress(
+                blob[: tree['compressedLengths'][0]], uncompressed_size=tree['decompressedLengths'][0]
+            )
             records = parse_blob(raw)
             form = tree['m_ParsedForm']
-            programs = []
-            for si, subshader in enumerate(form['m_SubShaders']):
-                for pi, shader_pass in enumerate(subshader['m_Passes']):
-                    for stage in ('progVertex', 'progFragment'):
-                        for sp in shader_pass[stage]['m_SubPrograms']:
-                            programs.append(
-                                dict(sub=si, passi=pi, stage=stage, sp=sp, names=dict(shader_pass['m_NameIndices']), **records[sp['m_BlobIndex']])
-                            )
-            out.append(dict(file=path.name, pid=obj.path_id, name=form['m_Name'], tree=tree, raw=raw, programs=programs))
+            programs = [
+                dict(
+                    sub=si,
+                    passi=pi,
+                    stage=stage,
+                    sp=sp,
+                    names=dict(shader_pass['m_NameIndices']),
+                    **records[sp['m_BlobIndex']],
+                )
+                for si, subshader in enumerate(form['m_SubShaders'])
+                for pi, shader_pass in enumerate(subshader['m_Passes'])
+                for stage in ('progVertex', 'progFragment')
+                for sp in shader_pass[stage]['m_SubPrograms']
+            ]
+            out.append(
+                {
+                    'file': path.name,
+                    'pid': obj.path_id,
+                    'name': form['m_Name'],
+                    'tree': tree,
+                    'raw': raw,
+                    'programs': programs,
+                }
+            )
     return out
