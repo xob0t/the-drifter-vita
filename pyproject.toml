@@ -5,6 +5,7 @@ description = "Translate The Drifter's PC build into a Unity 2018.2 project"
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
+    "dnfile>=0.18.0",
     "lz4>=4.4.5",
     "numpy>=2.5.3",
     "pillow>=12.3.0",
@@ -14,6 +15,7 @@ dependencies = [
     "pyelftools==0.29",
     # Downloads check TLS with Windows' certificate store (common.py): a fresh Windows fetches root
     # certificates on first use, so Python's own copy of the store lacks some (archive.org's).
+    "pyyaml>=6.0.3",
     "truststore>=0.10",
     # The exported project's texture and atlas data; pinned to the version the rules were written against.
     "unitypy==1.25.3",

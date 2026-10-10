@@ -16,6 +16,7 @@ import classes
 import convert
 import paths
 import scene
+import scripts as scriptlib
 import UnityPy
 import unityyaml
 
@@ -40,7 +41,7 @@ class SceneContext:
         return {'m_FileID': -1, 'm_PathID': fid, 'guid': ref['guid']}  # resolved when assets are laid out
 
 
-def yaml_signatures(objs):
+def yaml_signatures(objs, script_name):
     docs = [o.doc for o in objs]
     names = scene.hierarchy_paths(docs)
     by_id = {d.file_id: d for d in docs}
@@ -56,8 +57,8 @@ def yaml_signatures(objs):
                     continue
                 key = comp.class_id
                 if comp.class_id == 114:
-                    key = (114, comp.fields.get('m_Script', {}).get('fileID'))
-                sig[cid] = (comp.class_id, names[d.file_id], seen[key])
+                    key = (114, script_name(comp.fields.get('m_Script', {})))
+                sig[cid] = (comp.class_id, names[d.file_id], key, seen[key])
                 seen[key] += 1
         elif 'm_GameObject' not in d.fields:
             sig[d.file_id] = (d.class_id, '', 0)
@@ -76,7 +77,18 @@ def reference_level(index):
     return objs
 
 
-def reference_signatures(objs):
+def reference_scripts():
+    """MonoScript path ID in globalgamemanagers.assets -> (assembly, namespace, class)."""
+    env = UnityPy.load(str(paths.REFERENCE_MEDIA / 'globalgamemanagers.assets'))
+    out = {}
+    for o in env.objects:
+        if o.type.name == 'MonoScript':
+            t = o.read_typetree()
+            out[o.path_id] = (t['m_AssemblyName'], t['m_Namespace'], t['m_ClassName'])
+    return out
+
+
+def reference_signatures(objs, ref_scripts):
     go_name, parent_of, go_of_transform, comps, children = {}, {}, {}, {}, {}
     for pid, (cid, tree, _) in objs.items():
         if cid == 1:
@@ -108,8 +120,8 @@ def reference_signatures(objs):
             cid, tree, o = objs[c]
             key = cid
             if cid == 114:
-                key = (114, o.parse_monobehaviour_head().m_Script.m_PathID)
-            sig[c] = (cid, path(go), seen[key])
+                key = (114, ref_scripts.get(o.parse_monobehaviour_head().m_Script.m_PathID, (None, '', ''))[1:])
+            sig[c] = (cid, path(go), key, seen[key])
             seen[key] += 1
     for pid, (cid, tree, _) in objs.items():
         if pid not in sig and (tree is None or 'm_GameObject' not in tree):
@@ -159,34 +171,64 @@ def main():
     scenes = scene_paths()
     totals = collections.Counter()
     project = classes.Project(paths.PROJECT)
+    lib = scriptlib.Scripts()
+    ref_scripts = reference_scripts()
+    trees = {}
+
+    def script_name(ref):
+        found = lib.resolve(ref)
+        return found[1:] if found else ('?', str(ref.get('fileID')))
+
+    def tree_for(script):
+        if script not in trees:
+            model = lib.model(script)
+            try:
+                trees[script] = lib.release_tree(model) if model else None
+            except ValueError:
+                trees[script] = None
+        return trees[script]
+
     examples = collections.defaultdict(list)
     for index in args.levels or range(len(scenes)):
         sc = scene.Scene(scenes[index])
         ours = sc.objects()
         pid_of = {o.doc.file_id: o.path_id for o in ours}
         ctx = SceneContext(pid_of)
-        ours_sig_by_fid = yaml_signatures(ours)
+        ours_sig_by_fid = yaml_signatures(ours, script_name)
         ours_sig = {pid_of[f]: s for f, s in ours_sig_by_fid.items() if f in pid_of}
         ref = reference_level(index)
-        ref_sig = reference_signatures(ref)
+        ref_sig = reference_signatures(ref, ref_scripts)
+        lib.load_models({lib.resolve(o.doc.fields['m_Script']) for o in ours if o.doc.class_id == 114} - {None})
         ref_by_sig = {s: p for p, s in ref_sig.items()}
         for o in ours:
             cid = o.doc.class_id
-            if cid == 114 or (args.only and cid != args.only):
+            if args.only and cid != args.only:
                 continue
             s = ours_sig.get(o.path_id)
             rp = ref_by_sig.get(s)
             if rp is None:
                 totals[(cid, 'unpaired')] += 1
                 continue
-            mine, missing = convert.convert(cid, o.doc.fields, ctx)
+            tree, theirs = None, ref[rp][1]
+            if cid == 114:
+                script = lib.resolve(o.doc.fields['m_Script'])
+                tree = tree_for(script) if script else None
+                if tree is None:
+                    totals[(cid, 'no model')] += 1
+                    continue
+                try:
+                    theirs = ref[rp][2].read_typetree(nodes=tree, check_read=True)
+                except Exception as error:
+                    totals[(cid, 'model does not read', script[2], str(error)[:60])] += 1
+                    continue
+            mine, missing = convert.convert(cid, o.doc.fields, ctx, tree)
             if cid in classes.FIXUPS:
                 classes.FIXUPS[cid](mine, o.doc, project, sc)
             diffs = []
-            same(mine, ref[rp][1], ours_sig, ref_sig, '', diffs)
+            same(mine, theirs, ours_sig, ref_sig, '', diffs)
             totals[(cid, 'same' if not diffs else 'differs')] += 1
             for d in diffs:
-                key = (cid, d[0].split('[')[0])
+                key = (cid if cid != 114 else (114, script_name(o.doc.fields['m_Script'])[1]), d[0].split('[')[0])
                 totals[('field', key)] += 1
                 if len(examples[key]) < args.show:
                     examples[key].append((index, s, d[1], d[2], missing))

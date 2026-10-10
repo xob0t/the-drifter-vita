@@ -129,14 +129,14 @@ public static class Program
         {
             if (at.Rank != 1) return Unsupported("multi-dimensional array");
             var e = Node(ElementOf(at.ElementType, map), map, stack);
-            if (e == null) return Unsupported("array of non-serialized element " + at.ElementType.FullName);
+            if (e == null) return null; // Unity skips arrays of types it does not serialize
             return new Dictionary<string, object> { ["k"] = "array", ["e"] = e };
         }
 
         if (tr is GenericInstanceType git && git.ElementType.FullName == "System.Collections.Generic.List`1")
         {
             var e = Node(ElementOf(git.GenericArguments[0], map), map, stack);
-            if (e == null) return Unsupported("List of non-serialized element");
+            if (e == null) return null; // and lists of them
             return new Dictionary<string, object> { ["k"] = "array", ["e"] = e };
         }
 
