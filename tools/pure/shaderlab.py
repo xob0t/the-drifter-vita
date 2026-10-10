@@ -79,7 +79,8 @@ def scan(text):
             sub += 1
             passi = -1
             sub_depth = depth + 1
-        elif k in ('Pass', 'UsePass', 'GrabPass') and sub_depth is not None:
+        elif k in ('Pass', 'UsePass', 'GrabPass') and sub_depth is not None and depth == sub_depth:
+            # only passes directly in the SubShader: a Stencil block's 'Pass [_StencilOp]' is a state
             passi += 1
         i = m.end()
     return progs, incs
