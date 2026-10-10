@@ -5,7 +5,11 @@ import struct
 from gxp import params
 
 # GXP vertex attribute semantic -> Unity shader channel
-SEM_CHANNEL = {11: 0, 9: 1, 15: 2, 6: 3}  # POSITION, NORMAL, TANGENT, COLOR; TEXCOORDn -> 4+n
+SEM_CHANNEL = {11: 0, 9: 1, 13: 2, 15: 2, 6: 3}  # POSITION, NORMAL, TANGENT, COLOR; TEXCOORDn -> 4+n
+# The vertex component a channel binds when it differs from the channel (TANGENT binds 9)
+SEM_TARGET = {13: 9}
+# psp2cgc's samplerClass -> Unity texture dimension
+SAMPLER_DIMS = {'2d': 2, '3d': 3, 'cube': 4}
 
 
 def channel(p):
@@ -18,13 +22,15 @@ def target(p, semantic):
     # TEXCOORD with no number binds Unity's generic texcoord component, TEXCOORDn the numbered one
     if p['sem'] == 14:
         return 4 if semantic.upper() == 'TEXCOORD' else 5 + p['semidx']
-    return SEM_CHANNEL[p['sem']]
+    return SEM_TARGET.get(p['sem'], SEM_CHANNEL[p['sem']])
 
 
-def derive(g, semantics=None):
+def derive(g, semantics=None, dims=None):
+    """dims: sampler name -> texture dimension (sampler_dims(sdb)); 2D when not given."""
     gp = params(g)
     attrs = [p for p in gp if p['cat'] == 'attr']
-    chans = sorted({(channel(p), target(p, (semantics or {}).get(p['name'], 'TEXCOORD'))) for p in attrs})
+    # in the GXP's attribute order (vertex, tangent, normal, ... as the program declares them)
+    chans = list(dict.fromkeys((channel(p), target(p, (semantics or {}).get(p['name'], 'TEXCOORD'))) for p in attrs))
     src_map = sum(1 << c for c, _ in chans)
     vectors, matrices, textures, uniforms = [], [], [], []
     for p in reversed(gp):
@@ -44,7 +50,8 @@ def derive(g, semantics=None):
                     }
                 )
         elif p['cat'] == 'sampler':
-            textures.append({'name': p['name'], 'index': p['res'], 'sampler': p['res']})
+            dim = (dims or {}).get(p['name'], 2)
+            textures.append({'name': p['name'], 'index': p['res'], 'sampler': p['res'], 'dim': dim})
         elif p['cat'] != 'attr':
             raise ValueError(p)
     return {
@@ -79,7 +86,8 @@ def tail_bytes(b):
         )
     out += struct.pack('<II', 0, len(b['textures']))
     for t in b['textures']:
-        out += lstr(t['name']) + struct.pack('<4i', 0, t['index'], t['sampler'], 4)
+        # the blob stores the dimension doubled: 4 for 2D, 8 for cube (seen); 6 for 3D (assumed)
+        out += lstr(t['name']) + struct.pack('<4i', 0, t['index'], t['sampler'], 2 * t.get('dim', 2))
     return out
 
 
@@ -112,11 +120,21 @@ def unity_lists(b, nameidx):
                 'm_Index': t['index'],
                 'm_SamplerIndex': t['sampler'],
                 'm_MultiSampled': False,
-                'm_Dim': 2,
+                'm_Dim': t.get('dim', 2),
             }
             for t in b['textures']
         ],
         'm_Channels': {'m_Channels': [{'source': c, 'target': t} for c, t in b['chans']], 'm_SourceMap': b['src_map']},
+    }
+
+
+def sampler_dims(sdb):
+    """Sampler name -> Unity texture dimension from psp2cgc's XML SDB (the GXP does not say)."""
+    import re
+
+    return {
+        m[1]: SAMPLER_DIMS.get(m[2], 2)
+        for m in re.finditer(r'<sampler symbolName="([^"]+)"[^>]*samplerClass="([^"]+)"', sdb)
     }
 
 

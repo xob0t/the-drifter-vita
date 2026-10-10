@@ -38,6 +38,7 @@ from pathlib import Path
 import lz4.block
 import psp2cgc
 import shader_bindings as bindings
+from gxp import params as gxp_params
 from paths import EDITOR_DATA, PROJECT, WORK
 from shader_blob import blob as assemble_blob
 from shader_blob import subprogram as blob_record
@@ -831,12 +832,38 @@ class KeywordRegistry:
 
 
 MISSING = object()
+TARGET_OF = {v: k for k, v in psp2cgc.REQUIREMENTS.items()}
 
 
 def cache_path(text, shader_dir, stage, entry, target, keywords):
-    key = repr(('bindings-1', text, str(shader_dir), stage, entry, target, sorted(keywords)))
+    key = repr(('bindings-3', text, str(shader_dir), stage, entry, target, sorted(keywords)))
     digest = hashlib.sha256(key.encode()).hexdigest()
     return CACHE / digest[:2] / f'{digest}.pickle'
+
+
+def compile_at(text, shader_dir, stage, entry, target, keywords, level):
+    """psp2cgc.compile at another optimization level (it always uses -O3): (gxp, sdb) or None."""
+    import subprocess
+
+    vertex = stage == 'vp'
+    defines = psp2cgc.TARGET[target] + psp2cgc.PLATFORM + [k + '=1' for k in keywords]
+    defines += ['UNITY_VERSION=201839', 'SHADER_STAGE_VERTEX=1' if vertex else 'SHADER_STAGE_FRAGMENT=1']
+    defines += psp2cgc.AVAILABLE
+    psp2cgc.TMP.mkdir(parents=True, exist_ok=True)
+    src = psp2cgc.TMP / f'GXM_{"VP" if vertex else "FP"}_{uuid.uuid4().hex[:16]}'
+    out, sdb = src.with_suffix('.gxp'), src.with_suffix('.sdb')
+    src.write_bytes(text.encode())
+    command = [str(psp2cgc.PSP2CGC), str(src), level, '-W3', '-fastmath', '-pedantic', '-fx', '-nofastint']
+    command += ['-D' + d for d in defines]
+    includes = [shader_dir, PROJECT, psp2cgc.CGINCLUDES, psp2cgc.PSP2_PLAYER / 'CgBatchPlugins64' / 'include']
+    command += [f'-I{d}' for d in includes]
+    command += ['-profile', 'sce_vp_psp2' if vertex else 'sce_fp_psp2', '-entry', entry, '-o', str(out)]
+    command += ['-xmlsdb', str(sdb)]
+    result = subprocess.run(command, capture_output=True, cwd=PROJECT)
+    data = (out.read_bytes(), sdb.read_text(encoding='utf-8')) if result.returncode == 0 and out.exists() else None
+    for path in (src, out, sdb):
+        path.unlink(missing_ok=True)
+    return data
 
 
 def compile_program(text, shader_dir, stage, entry, target, keywords):
@@ -844,12 +871,63 @@ def compile_program(text, shader_dir, stage, entry, target, keywords):
     # psp2cgc now and then fails a program it compiles fine on the next try when many run at
     # once; a failure only counts when it repeats.
     for _ in range(3):
-        result, _ = psp2cgc.compile(text, shader_dir, stage, entry, target, sorted(keywords), sdb=True)
+        result, log = psp2cgc.compile(text, shader_dir, stage, entry, target, sorted(keywords), sdb=True)
         if result is not None:
-            gxp, sdb = result
-            b = bindings.derive(gxp, bindings.attribute_semantics(sdb))
-            return b, bindings.code_bytes(gxp, b)
-    return None
+            break
+    # When psp2cgc crashes at -O3, the editor's PS Vita compiler steps the optimization down
+    # (Hidden/Internal-DepthNormalsTexture's tree passes come out of -O1).
+    if result is None and 'internal compiler error' in log:
+        for level in ('-O2', '-O1', '-O0'):
+            result = compile_at(text, shader_dir, stage, entry, target, sorted(keywords), level)
+            if result is not None:
+                break
+    if result is None:
+        return None
+    gxp, sdb = result
+    b = bindings.derive(gxp, bindings.attribute_semantics(sdb), bindings.sampler_dims(sdb))
+    refine(b, gxp, sdb)
+    return b, bindings.code_bytes(gxp, b)
+
+
+SDB_ATTRIBUTE = re.compile(r'<attribute symbolName="([^"]+)"[^>]*declID="(\d+)"')
+SDB_UNIFORM = re.compile(r'<uniform symbolName="([^"]+)"[^>]*declID="(\d+)"')
+SDB_DECL = re.compile(r'<(?:vardecl|paramdecl) declID="(\d+)" name="[^"]*" type="([^"]+)"')
+MATRIX_TYPE = re.compile(r'^[a-z]+4x4(?:\[(\d+)\])?$')
+
+
+def refine(b, gxp, sdb):
+    """What the GXP alone cannot tell, from the SDB's declarations:
+    - a float4x4 is a matrix and a float4[4] a vector array (both are four float4 rows);
+    - vertex channels come per entry parameter, the last declared first (a struct parameter's
+      members keep their order)."""
+    decl_type = dict(SDB_DECL.findall(sdb))
+    uniform_type = {name: decl_type.get(d, '') for name, d in SDB_UNIFORM.findall(sdb)}
+    consts = []
+    for entry in b['vectors'] + b['matrices']:
+        t = uniform_type.get(entry['name'])
+        m = MATRIX_TYPE.match(t) if t else None
+        if t is None:
+            consts.append(entry)
+            continue
+        if m:
+            entry.update(rows=4, cols=4, arr=int(m[1] or 0))
+        elif entry['rows'] == 4:  # an array of rows the GXP made look like a matrix
+            entry.update(rows=1, cols=4, arr=4)
+        consts.append(entry)
+    b['matrices'] = sorted((c for c in consts if c['rows'] == 4), key=lambda c: c['index'])
+    b['vectors'] = sorted((c for c in consts if c['rows'] != 4), key=lambda c: c['index'])
+    decl = {name.split('.')[0]: int(d) for name, d in SDB_ATTRIBUTE.findall(sdb)}
+    semantics = bindings.attribute_semantics(sdb)
+    attrs = [p for p in gxp_params(gxp) if p['cat'] == 'attr']
+    keyed = sorted(
+        (
+            -decl.get(p['name'].split('.')[0], 0),
+            i,
+            (bindings.channel(p), bindings.target(p, semantics.get(p['name'], 'TEXCOORD'))),
+        )
+        for i, p in enumerate(attrs)
+    )
+    b['chans'] = list(dict.fromkeys(c for _, _, c in keyed))
 
 
 def cached(path):
@@ -860,32 +938,66 @@ def cached(path):
         return MISSING
 
 
+def compile_jobs(text, shader_dir, jobs, pool):
+    """[(binding data, code bytes) or None] for [(stage, entry, target, keywords)]. Results are
+    kept under WORK, keyed by everything psp2cgc sees."""
+    paths_ = [cache_path(text, shader_dir, *job) for job in jobs]
+
+    def run(i):
+        result = compile_program(text, shader_dir, *jobs[i])
+        paths_[i].parent.mkdir(parents=True, exist_ok=True)
+        tmp = paths_[i].with_suffix(f'.{uuid.uuid4().hex}.tmp')
+        tmp.write_bytes(pickle.dumps(result))
+        try:
+            tmp.replace(paths_[i])
+        except PermissionError:  # Windows: someone is reading the same result right now
+            tmp.unlink(missing_ok=True)
+        return result
+
+    results = [cached(path) for path in paths_]
+    todo = list({paths_[i]: i for i, r in enumerate(results) if r is MISSING}.values())
+    done = dict(zip([paths_[i] for i in todo], pool.map(run, todo), strict=True))
+    return [done[path] if r is MISSING else r for path, r in zip(paths_, results, strict=True)]
+
+
 def compile_variants(text, shader_dir, snippet, variants, pool):
-    """[(vertex bindings, fragment bindings, vertex code, fragment code) or None] per variant.
-    Results are kept under WORK, keyed by everything psp2cgc sees."""
+    """[(vertex bindings, fragment bindings, vertex code, fragment code) or None] per variant: a
+    variant either stage rejects is dropped."""
+    # a keyword that needs more than the snippet's target (SHADOWS_SCREEN: 3.0) raises its variant's
     jobs = [
-        (cache_path(text, shader_dir, stage, entry, snippet.target, keywords), stage, entry, keywords)
+        (stage, entry, TARGET_OF[requirements(snippet.target, keywords)], keywords)
         for keywords in variants
         for stage, entry in (('vp', snippet.vertex), ('fp', snippet.fragment))
     ]
-
-    def run(job):
-        path, stage, entry, keywords = job
-        result = compile_program(text, shader_dir, stage, entry, snippet.target, keywords)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(f'.{uuid.uuid4().hex}.tmp')
-        tmp.write_bytes(pickle.dumps(result))
-        tmp.replace(path)
-        return result
-
-    results = [cached(job[0]) for job in jobs]
-    todo = [i for i, r in enumerate(results) if r is MISSING]
-    for i, r in zip(todo, pool.map(run, [jobs[i] for i in todo]), strict=True):
-        results[i] = r
+    results = compile_jobs(text, shader_dir, jobs, pool)
     out = []
     for vp, fp in zip(results[::2], results[1::2], strict=True):
         out.append(None if vp is None or fp is None else (vp[0], fp[0], vp[1], fp[1]))
     return out
+
+
+def fill_programs(out, stages, records, requirements_of):
+    """Put a pass's compiled programs into its parsed form and the blob records.
+
+    stages: [(gpu type, 'progVertex'/'progFragment', [(keywords, bindings, code bytes)])] in
+    stage order. Names get their index in order of first use: per stage, per subprogram its
+    vector, matrix and texture parameters, then its keywords."""
+    names = {}
+    for _, _, kept in stages:
+        for keywords, b, _ in kept:
+            for group in ('vectors', 'matrices', 'textures'):
+                for item in b[group]:
+                    names.setdefault(item['name'], len(names))
+            for k in keywords:
+                names.setdefault(k, len(names))
+    out['m_NameIndices'] = sorted(names.items())
+    for gpu_type, key, kept in stages:
+        subs = []
+        for keywords, b, code in kept:
+            reqs = requirements_of(keywords)
+            subs.append(subprogram_dict(len(records), b, [names[k] for k in keywords], gpu_type, reqs, names))
+            records.append(blob_record(gpu_type, keywords, code, bindings.tail_bytes(b)))
+        out[key] = {'m_SubPrograms': subs}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1032,29 +1144,11 @@ def _build(source, options, registry, pool):
                 text = unity_input(source.text, ps.program, source.includes)
             results = compile_variants(text, shader_dir, info, variants, pool)
             kept = [(v, r) for v, r in zip(variants, results, strict=True) if r is not None]
-            names = {}
-
-            def register(name, names=names):
-                if name not in names:
-                    names[name] = len(names)
-
-            for stage in (0, 1):
-                for keywords, r in kept:
-                    b = r[stage]
-                    for group in ('vectors', 'matrices', 'textures'):
-                        for item in b[group]:
-                            register(item['name'])
-                    for k in keywords:
-                        register(k)
-            out['m_NameIndices'] = sorted(names.items())
-            for stage, key, gpu_type in ((0, 'progVertex', GPU_VERTEX), (1, 'progFragment', GPU_FRAGMENT)):
-                subs = []
-                for keywords, r in kept:
-                    b, code_bytes = r[stage], r[2 + stage]
-                    reqs = requirements(info.target, keywords)
-                    subs.append(subprogram_dict(len(records), b, [names[k] for k in keywords], gpu_type, reqs, names))
-                    records.append(blob_record(gpu_type, keywords, code_bytes, bindings.tail_bytes(b)))
-                out[key] = {'m_SubPrograms': subs}
+            stages = [
+                (GPU_VERTEX, 'progVertex', [(v, r[0], r[2]) for v, r in kept]),
+                (GPU_FRAGMENT, 'progFragment', [(v, r[1], r[3]) for v, r in kept]),
+            ]
+            fill_programs(out, stages, records, lambda keywords, info=info: requirements(info.target, keywords))
         subshaders.append({'m_Passes': passes, 'm_Tags': {'tags': sub_tags}, 'm_LOD': sub.lod})
 
     raw = assemble_blob(records)
