@@ -11,7 +11,8 @@ TARGET = common.TARGET
 # The translated project the pipeline's rules produce (pipeline.py project --platform vita).
 PROJECT = common.WORK / f'drifter-{TARGET}-vita'
 # The player Unity built from that project: the reference the checks compare against.
-REFERENCE = ROOT / 'builds' / f'drifter-{TARGET}-vita'
+# Unity's build of the current project, which is in diag mode (the probe's DrifterDiag.dll is in).
+REFERENCE = ROOT / 'builds' / f'drifter-{TARGET}-vita-diag'
 REFERENCE_MEDIA = REFERENCE / 'Media'
 # Files taken from Unity's installers (CGIncludes, the PS Vita player and its shader includes).
 EDITOR_DATA = common.EDITORS / TARGET / 'Editor' / 'Data'
