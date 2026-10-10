@@ -13,6 +13,7 @@ import time
 from typing import ClassVar
 
 import animation
+import mixer
 import classes
 import convert
 import paths
@@ -140,6 +141,8 @@ class Build:
                     data = animation.clip(doc, ctx)
                 elif cid == 91:
                     data = animation.controller(doc, ctx, a, db)
+                elif cid == 241:
+                    data = mixer.mixer(doc, ctx, a)
                 else:
                     if cid == 114:
                         script = self.scripts.resolve(doc.fields['m_Script'], doc.fields)

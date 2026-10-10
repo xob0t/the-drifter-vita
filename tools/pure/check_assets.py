@@ -11,6 +11,7 @@ import collections
 import sys
 
 import animation
+import mixer
 import classes
 import convert
 import paths
@@ -99,6 +100,8 @@ def main():
                     mine = animation.clip(doc, ctx)
                 elif cid == 91:
                     mine = animation.controller(doc, ctx, a, layout.db)
+                elif cid == 241:
+                    mine = mixer.mixer(doc, ctx, a)
                 else:
                     mine, _ = convert.convert(cid, doc.fields, ctx, tree)
             except (TypeError, ValueError, KeyError) as error:
