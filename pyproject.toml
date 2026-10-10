@@ -16,6 +16,7 @@ dependencies = [
     # Downloads check TLS with Windows' certificate store (common.py): a fresh Windows fetches root
     # certificates on first use, so Python's own copy of the store lacks some (archive.org's).
     "pyyaml>=6.0.3",
+    "soundfile>=0.14.0",
     "truststore>=0.10",
     # The exported project's texture and atlas data; pinned to the version the rules were written against.
     "unitypy==1.25.3",

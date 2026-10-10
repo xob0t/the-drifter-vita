@@ -13,6 +13,7 @@ import time
 from typing import ClassVar
 
 import animation
+import audio
 import classes
 import convert
 import mixer
@@ -47,6 +48,7 @@ class SceneContext(AssetContext):
 class Build:
     def __init__(self, out):
         self.out = out
+        self.streams = {}  # '<file>.resS' / '<file>.resource' -> bytearray the class builders append to
         self.media = out / 'Media'
         self.layout = Layout()
         shared = [f'sharedassets{i}.assets' for i in range(len(self.layout.scenes))]
@@ -168,6 +170,9 @@ class Build:
         path.write_bytes(data)
 
 
+Build.IMPORTED[83] = audio.imported
+
+
 def compare(name, data):
     ref = (paths.REFERENCE_MEDIA / name).read_bytes()
     if ref == data:
@@ -202,6 +207,10 @@ def main():
         note = compare(name, data) if args.compare else ''
         gaps = f'; not built yet: {dict(missing)}' if missing else ''
         print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
+    for name, data in build.streams.items():
+        build.write(name, bytes(data))
+        note = compare(name, bytes(data)) if args.compare else ''
+        print(f'{name}: {len(data)} bytes {note}')
     return 0
 
 
