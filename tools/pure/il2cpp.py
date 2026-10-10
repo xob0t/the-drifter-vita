@@ -562,7 +562,7 @@ def build(out=paths.OUT, project=paths.PROJECT, count=None, force=False, work=BU
         times['appinfo'] = run(snc, work / 'appinfo.log', cwd=work)
 
         command = il2cpp_command(inputs, roots, managed, module, generated, work / 'ApplicationInfo.o', work / 'cache')
-        times['il2cpp'] = run(command, work / 'il2cpp.log')
+        times['il2cpp'] = run(command, work / 'il2cpp.log', cwd=work)  # psp2ld writes its stub archive here
         stamp_file.write_text(stamp)
 
     sources = {
