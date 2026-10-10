@@ -13,9 +13,9 @@ import time
 from typing import ClassVar
 
 import animation
-import mixer
 import classes
 import convert
+import mixer
 import paths
 import scene as scenelib
 import scripts as scriptlib

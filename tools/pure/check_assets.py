@@ -11,9 +11,9 @@ import collections
 import sys
 
 import animation
-import mixer
 import classes
 import convert
+import mixer
 import paths
 import scripts as scriptlib
 import UnityPy
