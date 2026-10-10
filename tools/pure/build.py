@@ -7,9 +7,11 @@ reference build byte for byte and reports the first difference.
 """
 
 import argparse
+import collections
 import sys
 import time
 
+import animation
 import classes
 import convert
 import paths
@@ -18,7 +20,7 @@ import scripts as scriptlib
 import typehash
 import UnityPy
 from layout import Layout
-from placement import AssetContext, Placement
+from placement import AssetContext, Placement, first_path_id
 from writer import SerializedWriter, TypeHashes
 
 DEFAULT_RESOURCES = '0000000000000000e000000000000000'
@@ -112,6 +114,50 @@ class Build:
             out.add(o.path_id, cid, data, tree, script)
         return out.write(self.hashes)
 
+    # Builders the other modules provide, by class: f(build, file_name, guid, file_id, asset) ->
+    # (data, tree) or None while that class is not done yet. Stream data goes through self.streams.
+    IMPORTED = {}
+
+    def shared(self, file_name):
+        """A sharedassetsN.assets / resources.assets / globalgamemanagers.assets file. Returns (bytes,
+        classes that could not be built yet)."""
+        objects = self.layout.objects(file_name)
+        start = first_path_id(file_name)
+        out = SerializedWriter(file_name)
+        missing = collections.Counter()
+        db = self.layout.db
+        mbs = [db.by_guid[g].docs[fid] for g, fid, cid in objects if cid == 114]
+        self.scripts.load_models({self.scripts.resolve(d.fields['m_Script'], d.fields) for d in mbs} - {None})
+        for i, (g, fid, cid) in enumerate(objects):
+            a = db.by_guid.get(g)
+            tree, script, data = None, None, None
+            if a is not None and a.is_yaml:
+                doc = a.docs[fid]
+                ctx = AssetContext(self.placement, file_name, g, self.scripts, self.monoscripts)
+                ctx.fields = doc.fields
+                if cid == 74:
+                    data = animation.clip(doc, ctx)
+                elif cid == 91:
+                    data = animation.controller(doc, ctx, a, db)
+                else:
+                    if cid == 114:
+                        script = self.scripts.resolve(doc.fields['m_Script'], doc.fields)
+                        tree = self.script_tree(script)
+                    data, _ = convert.convert(cid, doc.fields, ctx, tree)
+                    if cid in classes.FIXUPS:
+                        classes.FIXUPS[cid](data, doc, self.project, None)
+                    if cid in classes.ASSET_FIXUPS:
+                        classes.ASSET_FIXUPS[cid](data, doc, a)
+            elif cid in self.IMPORTED:
+                made = self.IMPORTED[cid](self, file_name, g, fid, a)
+                if made:
+                    data, tree = made
+            if data is None:
+                missing[cid] += 1
+                continue
+            out.add(start + i, cid, data, tree, script)
+        return out.write(self.hashes), missing
+
     def write(self, name, data):
         path = self.media / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,6 +189,15 @@ def main():
         build.write(name, data)
         note = compare(name, data) if args.compare else ''
         print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}')
+    for name in build.files:
+        if only and name not in only:
+            continue
+        start = time.time()
+        data, missing = build.shared(name)
+        build.write(name, data)
+        note = compare(name, data) if args.compare else ''
+        gaps = f'; not built yet: {dict(missing)}' if missing else ''
+        print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
     return 0
 
 
