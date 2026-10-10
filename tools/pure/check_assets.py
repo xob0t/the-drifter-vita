@@ -52,7 +52,13 @@ def main():
         start = first_path_id(f)
         objs = layout.objects(f)
         mbs = [(g, fid) for g, fid, cid in objs if cid == 114]
-        lib.load_models({lib.resolve(layout.db.by_guid[g].docs[fid].fields['m_Script']) for g, fid in mbs} - {None})
+        lib.load_models(
+            {
+                lib.resolve(layout.db.by_guid[g].docs[fid].fields['m_Script'], layout.db.by_guid[g].docs[fid].fields)
+                for g, fid in mbs
+            }
+            - {None}
+        )
         for i, (g, fid, cid) in enumerate(objs):
             if args.only and cid != args.only:
                 continue
@@ -70,7 +76,7 @@ def main():
             doc = a.docs[fid]
             tree = None
             if cid == 114:
-                script = lib.resolve(doc.fields['m_Script'])
+                script = lib.resolve(doc.fields['m_Script'], doc.fields)
                 if script not in trees:
                     model = script and lib.model(script)
                     try:
@@ -87,6 +93,7 @@ def main():
                 totals[(cid, 'reference does not read', str(error)[:50])] += 1
                 continue
             ctx = AssetContext(placement, f, g, lib, monoscripts)
+            ctx.fields = doc.fields
             try:
                 if cid == 74:
                     mine = animation.clip(doc, ctx)

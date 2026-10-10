@@ -45,23 +45,37 @@ class Scripts:
         return out
 
     def classes(self, dll):
-        """fileID -> (namespace, name) for the top-level types of a DLL."""
+        """fileID -> [(namespace, name), ...] for the top-level types of a DLL. The hash covers
+        namespace + name joined, so PowerTools.Quest.GuiInventoryPanel and
+        PowerTools.QuestGui.InventoryPanel share a fileID."""
         if dll not in self._classes:
             pe = dnfile.dnPE(str(dll))
             table = {}
             for t in pe.net.mdtables.TypeDef or []:
                 ns, name = str(t.TypeNamespace or ''), str(t.TypeName)
-                table[file_id(ns, name)] = (ns, name)
+                table.setdefault(file_id(ns, name), []).append((ns, name))
             self._classes[dll] = table
         return self._classes[dll]
 
-    def resolve(self, ref):
-        """(assembly file name, namespace, class name) of a YAML m_Script reference, or None."""
+    def resolve(self, ref, fields=None):
+        """(assembly file name, namespace, class name) of a YAML m_Script reference, or None. When
+        the fileID is shared, `fields` (the object's YAML) picks the class whose fields it has."""
         dll = self.assemblies.get(ref.get('guid'))
         if dll is None:
             return None
         found = self.classes(dll).get(int(ref['fileID']))
-        return (dll.name, *found) if found else None
+        if not found:
+            return None
+        if len(found) > 1 and fields is not None:
+            self.load_models([(dll.name, *c) for c in found])
+
+            def fit(c):
+                model = self.model((dll.name, *c)) or {'fields': []}
+                names = {f['n'] for f in model['fields'] if 'node' in f}
+                return len(names & set(fields)) - len(names - set(fields))
+
+            return (dll.name, *max(found, key=fit))
+        return (dll.name, *found[0])
 
     @cached_property
     def managed(self):
@@ -116,10 +130,14 @@ class ReleaseBuilder:
         for c in node.m_Children:
             self.copy(c, level + 1)
 
-    def value(self, m, level, name, meta=0):
+    def value(self, m, level, name, meta=0, element=False):
         k = m['k']
         if k == 'prim':
-            self.add(level, m['t'], name, m['size'], meta | (ALIGN if m['t'] in SUB4 and m['size'] < 4 else 0))
+            # array elements pack tightly; the array as a whole is aligned after its last element
+            pad = m['t'] in SUB4 and m['size'] < 4 and not element
+            # A C# char is two bytes; Unity's type name 'char' is the one-byte string element.
+            kind = 'UInt16' if m['t'] == 'char' else m['t']
+            self.add(level, kind, name, m['size'], meta | (ALIGN if pad else 0))
         elif k == 'string':
             self.add(level, 'string', name, -1, meta | 0x8000)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN | 0x8000)
@@ -147,7 +165,7 @@ class ReleaseBuilder:
             self.add(level, 'vector', name, -1, meta | 0x8000)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN | 0x8000)
             self.add(level + 2, 'int', 'size', 4)
-            self.value(m['e'], level + 2, 'data')
+            self.value(m['e'], level + 2, 'data', element=True)
         elif k == 'struct':
             self.add(level, m['t'], name, -1, meta)
             self.fields(m['fields'], level + 1)

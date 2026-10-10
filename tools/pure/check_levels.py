@@ -211,7 +211,7 @@ def main():
                 continue
             tree, theirs = None, ref[rp][1]
             if cid == 114:
-                script = lib.resolve(o.doc.fields['m_Script'])
+                script = lib.resolve(o.doc.fields['m_Script'], o.doc.fields)
                 tree = tree_for(script) if script else None
                 if tree is None:
                     totals[(cid, 'no model')] += 1

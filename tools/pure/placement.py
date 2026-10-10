@@ -46,6 +46,7 @@ class AssetContext:
     def __init__(self, placement, file_name, guid, scripts=None, monoscripts=None):
         self.placement, self.file, self.guid = placement, file_name, guid
         self.scripts, self.monoscripts = scripts, monoscripts or {}
+        self.fields = None  # the YAML of the object being converted, for ambiguous script references
 
     def pptr(self, ref, node):
         fid = int(ref.get('fileID', 0))
@@ -53,7 +54,7 @@ class AssetContext:
             return {'m_FileID': 0, 'm_PathID': 0}
         guid = ref.get('guid', self.guid)
         if self.scripts is not None and guid in self.scripts.assemblies:
-            pid = self.monoscripts.get(self.scripts.resolve(ref), 0)
+            pid = self.monoscripts.get(self.scripts.resolve(ref, self.fields), 0)
             return {'m_FileID': 0, 'm_PathID': pid, 'file': 'globalgamemanagers.assets'}
         f, pid = self.placement.find(guid, fid)
         if f is None:

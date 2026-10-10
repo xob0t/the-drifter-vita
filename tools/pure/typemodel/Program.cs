@@ -159,7 +159,9 @@ public static class Program
         if (IsUnityObject(td))
             return new Dictionary<string, object> { ["k"] = "pptr", ["t"] = SimpleName(td) };
 
-        if (td.IsInterface) return null;
+        if (td.IsInterface || td.IsAbstract) return null;
+        // Unity serializes no class from the .NET libraries beyond strings and lists.
+        if (td.Namespace == "System" || td.Namespace.StartsWith("System.")) return null;
         bool serializable = td.IsSerializable || (td.IsValueType && td.Namespace.StartsWith("UnityEngine"));
         if (!serializable) return null;
 
@@ -213,10 +215,17 @@ public static class Program
         return false;
     }
 
+    // Where a script's serialized fields stop: the engine base classes contribute their own
+    // native fields (m_GameObject, m_Script, ...), which the type tree's base part already has.
+    static readonly HashSet<string> RootBases = new HashSet<string>
+    {
+        "System.Object", "System.ValueType", "System.Enum", "UnityEngine.Object", "UnityEngine.Component",
+        "UnityEngine.Behaviour", "UnityEngine.MonoBehaviour", "UnityEngine.ScriptableObject",
+    };
+
     static bool IsRootBase(TypeReference bt)
     {
-        if (bt.FullName == "System.Object" || bt.FullName == "System.ValueType" || bt.FullName == "System.Enum") return true;
-        return bt.Namespace.StartsWith("UnityEngine");
+        return RootBases.Contains(bt.FullName);
     }
 
     static bool HasAttr(ICustomAttributeProvider p, string name)
