@@ -778,6 +778,12 @@ def main():
         '(default: three per four hardware threads; 1 imports in the build editor alone)',
     )
     parser.add_argument(
+        '--pure',
+        action='store_true',
+        help='build: make the PS Vita player without running Unity (tools/pure/make.py): no license, no import; '
+        "it reads the installed editor's and PS Vita module's files and the SDK's tools",
+    )
+    parser.add_argument(
         '--skip-checks', action='store_true', help="don't check the stage's requirements first (doctor.py's preflight)"
     )
     args = parser.parse_args()
@@ -811,7 +817,14 @@ def main():
             f'{project} was assembled with diag={marker.read_text(encoding="utf-8")}; run the project stage '
             f'again or build with the same --diag'
         )
-    if args.stage in ('build', 'all'):
+    if args.stage in ('build', 'all') and args.pure:
+        if args.platform != 'vita':
+            parser.error('--pure builds the PS Vita player only')
+        sys.path.insert(0, str(HERE.parent / 'pure'))
+        import make
+
+        make.make(output)
+    elif args.stage in ('build', 'all'):
         build(
             project,
             args.version,

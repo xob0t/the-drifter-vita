@@ -264,6 +264,7 @@ def compare(name, data, reference=paths.REFERENCE_MEDIA):
 
 def write_all(build, only=frozenset(), compare_files=False):
     """Writes every file of the player's data (or those named in `only`), printing each."""
+    paths.builtin_shaders()
     ref = build.target.reference
     for i in range(len(build.layout.scenes)):
         name = f'level{i}'

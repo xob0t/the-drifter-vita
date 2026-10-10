@@ -23,3 +23,24 @@ PSP2CGC = SDK / 'host_tools' / 'bin' / 'psp2cgc.exe'
 # Scratch space and outputs.
 WORK = common.WORK / 'pure'
 OUT = ROOT / 'builds' / f'drifter-{TARGET}-vita-pure'
+
+# Unity's built-in shader source (Sprites/Default, Unlit/Transparent and the engine's shaders the
+# build compiles), from Unity's download server, pinned by hash.
+BUILTIN_SHADERS_URL = 'https://download.unity3d.com/download_unity/06990f28ba00/builtin_shaders-2018.2.19f1.zip'
+BUILTIN_SHADERS_SHA256 = 'cf29363ba6832f1e420defa4db3493d78c2f6f1aceacfa0817e7cd8fedb40d00'
+BUILTIN_SHADERS = WORK / 'builtin_shaders'
+
+
+def builtin_shaders():
+    """The unpacked built-in shader source, fetched and checked on first use."""
+    if not (BUILTIN_SHADERS / 'DefaultResourcesExtra').exists():
+        import zipfile
+
+        archive = common.download(
+            BUILTIN_SHADERS_URL,
+            WORK / 'builtin_shaders_zip' / BUILTIN_SHADERS_URL.rsplit('/', 1)[1],
+            BUILTIN_SHADERS_SHA256,
+        )
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(BUILTIN_SHADERS)
+    return BUILTIN_SHADERS

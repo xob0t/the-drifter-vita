@@ -19,6 +19,7 @@ import paths
 
 def make(out):
     start = time.time()
+    paths.builtin_shaders()
     package.vita_folder(out)
     data.write_all(data.Build(out, platform='vita'))
     il2cpp.build(out)
