@@ -14,12 +14,14 @@ from typing import ClassVar
 
 import animation
 import audio
+import builtin_copies
 import classes
 import convert
 import mixer
 import paths
 import scene as scenelib
 import scripts as scriptlib
+import shader_object
 import typehash
 import UnityPy
 from layout import Layout
@@ -171,6 +173,8 @@ class Build:
 
 
 Build.IMPORTED[83] = audio.imported
+Build.IMPORTED[48] = shader_object.imported
+Build.IMPORTED[21] = builtin_copies.material
 
 
 def compare(name, data):
