@@ -1,0 +1,12 @@
+# Downloaded and built tools (AssetRipper, .NET SDK, USCSandbox, compiled helpers)
+tools/external/
+# Pipeline outputs: exported/translated projects, players, logs, parity captures. work/ also holds
+# the coordination locks and the Vita queue's state.
+work/
+builds/
+artifacts/
+# Local assistant session files
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+__pycache__/
+.venv/

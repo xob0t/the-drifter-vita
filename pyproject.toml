@@ -1,0 +1,49 @@
+[project]
+name = "drifter-vita"
+version = "0.1.0"
+description = "Translate The Drifter's PC build into a Unity 2018.2 project"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.3",
+    "pillow>=12.3.0",
+    # vita.py crashes --pull reads the dump with vita-parse-core, which imports elftools.common.py3compat;
+    # later releases removed it.
+    "pyelftools==0.29",
+    # Downloads check TLS with Windows' certificate store (common.py): a fresh Windows fetches root
+    # certificates on first use, so Python's own copy of the store lacks some (archive.org's).
+    "truststore>=0.10",
+    # The exported project's texture and atlas data; pinned to the version the rules were written against.
+    "unitypy==1.25.3",
+]
+# Not dependencies: tools/downgrade/mute_players.py runs with `uv run --with pycaw`.
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.10",
+]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["work", "artifacts", "builds", "tools/external"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # import order
+    "UP",      # pyupgrade: syntax for the target Python
+    "B",       # bugbear: likely bugs
+    "SIM",     # simplifications
+    "C4",      # comprehensions
+    "PIE",     # unnecessary code
+    "PERF",    # performance anti-patterns
+    "RUF",     # ruff's own rules
+]
+

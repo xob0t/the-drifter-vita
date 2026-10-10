@@ -1,0 +1,4 @@
+# Keep every file byte for byte as written: no line-ending conversion. The tools keep
+# each file's own line endings (README.md, DowngradeAssemblies.cs, rewriter/*.cs and a few others
+# are CRLF, most sources LF); with core.autocrlf a checkout would otherwise rewrite them.
+* -text

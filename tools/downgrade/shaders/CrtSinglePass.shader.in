@@ -1,0 +1,429 @@
+// Template of CRT/SinglePass, the game's CRT filter in one pass (DrifterCompat.Crt). The game
+// draws it as three full-screen passes through two intermediate textures; the blur pass is
+// an exact copy at the game's blur size of 0 (BaseCRTEffect.ProcessEffect uses these passes
+// only then), so it is left out. Uniforms are copied from the original materials
+// (DrifterCompat.Crt). Float arithmetic only, no integer or bitwise operations (as
+// shader_rules.py mask_logic makes the game's shaders for the PS Vita).
+//
+// crt_shader.py makes Assets/Resources/CrtSinglePass.shader from this file during the project
+// stage. Each "// @lift <part>" line becomes a function whose body is code taken from the
+// game's own CRT shaders as the pipeline decompiles them (CRT/Postprocess and
+// CRT/FinalPostprocess, after shader_rules.py's rules); crt_shader.py says which code each
+// part takes. The rest (the passes, the grid mesh path, the lookup texture, the two-step
+// aberration path for the PS Vita) is the pipeline's own.
+//
+// The final pass reads the intermediate texture bilinearly at a curved position B. Here the
+// first pass's colour work reads the source around B instead. Its per-texel patterns are
+// blended at B as that bilinear read blends them: the RGB mask's columns exactly, and in
+// passes 2 and 3 the noise, whose texture texels stand for the intermediate's. Pass 0 takes
+// the noise at the output pixel (the texel the intermediate holds there): blending it would
+// take four evaluations.
+//
+// Pass 0: any settings, the game's programs one after the other (see postprocess).
+// Pass 1: the lookup texture for passes 2, 3, 6 and 7, drawn once per size and settings: the RGB
+//         mask pattern blended at B (rgb, in units of 2 * rgbMaskSep * rgbMaskSub *
+//         rgbMaskStr) and the final pass's mask and vignette as one factor (a).
+// Pass 2: the settings the game uses (chromatic aberration with a bleeding distance of
+//         about the aberration's, Lighten noise, no interference), drawn over a grid mesh whose
+//         vertices carry B and the tap positions. 11 taps of the source, the lookup texture
+//         and a noise texture.
+// Pass 3: pass 2 with the color matrix and levels.
+// Pass 4: a cost floor for measurements, not the filter.
+// Passes 5-7: passes 2 and 3 in two steps with fewer texture reads (see there).
+// Pass 8: pass 6 for the game's settings in fewer instructions; pass 9: its lookup texture.
+Shader "CRT/SinglePass" {
+    Properties {
+        _MainTex ("Texture", 2D) = "white" {}
+        _CrtLut ("Lookup", 2D) = "white" {}
+        _CrtNoise ("Noise", 2D) = "black" {}
+    }
+    CGINCLUDE
+    #include "UnityCG.cginc"
+
+    sampler2D _MainTex;
+    // The first pass's uniforms (CRT/Postprocess)
+    float4x4 colorMat;
+    float pixelSizeX, pixelSizeY, seconds;
+    float bleedDist, bleedStr, blurStr;
+    float rgbMaskSub, rgbMaskSep, rgbMaskStr;
+    float colorNoiseMode, colorNoiseStr, monoNoiseMode, monoNoiseStr;
+    float3 minLevels, maxLevels, blackPoint, whitePoint;
+    float interWidth, interSpeed, interStr, interSplit, aberStr;
+    // The final pass's (CRT/FinalPostprocess)
+    float maskMode, maskStr, vignetteStr, vignetteSize;
+    float crtBendX, crtBendY, crtOverscan, flipV;
+    // Passes 2 and 3 (DrifterCompat.Crt)
+    sampler2D _CrtLut, _CrtNoise;
+    float4 _CrtTaps;       // red's offset, the far bleeding tap, unused, the vertical bleeding offset (uv)
+    float4 _CrtNoiseST;    // noise texture scale and this frame's offset
+    float _CrtOffsetScale; // 2 * rgbMaskSep * rgbMaskSub * rgbMaskStr
+
+    // What the taken code reads and writes: its programs' input (texcoord, and texcoord1 for
+    // the first pass's second texture) and output.
+    struct crtLifted
+    {
+        float2 texcoord;
+        float2 texcoord1;
+    };
+
+    struct fout
+    {
+        float4 sv_target;
+    };
+
+    // float2 bend(float2 texcoord): where the final pass samples its input (the screen's
+    // curvature), from the start of its fragment program.
+    // @lift bend
+
+    float2 flipped(float2 texcoord)
+    {
+        return float2(texcoord.x, flipV != 0.0 ? 1.0 - texcoord.y : texcoord.y);
+    }
+
+    bool outside(float2 bent)
+    {
+        return any(bent < 0.0) || any(bent > 1.0);
+    }
+
+    // float3 columnMask(float texel): what the first pass's RGB mask subtracts from each
+    // channel in the texel column whose centre is at x = texel (in texels), in units of
+    // rgbMaskSep * rgbMaskSub at full strength.
+    // @lift columnMask
+
+    // The RGB mask's factor blended at x (uv) as a bilinear read of the intermediate texture
+    // blends it.
+    float3 columnPattern(float x)
+    {
+        float width = 1.0 / pixelSizeX;
+        float tx = x * width - 0.5;
+        float x0 = floor(tx);
+        float f = tx - x0;
+        float i0 = clamp(x0, 0.0, width - 1.0), i1 = clamp(x0 + 1.0, 0.0, width - 1.0);
+        return lerp(columnMask(i0 + 0.5), columnMask(i1 + 0.5), f);
+    }
+
+    float3 rgbMaskOffset(float x)
+    {
+        return columnPattern(x) * (rgbMaskSep * rgbMaskSub * rgbMaskStr);
+    }
+
+    // float mask(float2 texcoord): the final pass's mask (every maskMode), one value for all
+    // three channels.
+    // @lift mask
+
+    // float vignette(float2 bent): the final pass's vignette at the curved position.
+    // @lift vignette
+
+    // float3 levels(float3 color): the first pass's color matrix, levels and clamp.
+    // @lift levels
+
+    // ---- Pass 0
+
+    struct v2f
+    {
+        float4 position : SV_POSITION;
+        float2 texcoord : TEXCOORD0;
+    };
+
+    v2f vert(appdata_img v)
+    {
+        v2f o;
+        o.position = UnityObjectToClipPos(v.vertex);
+        o.texcoord = flipped(v.texcoord);
+        return o;
+    }
+
+    // float4 postprocess(float2 uv, float2 pixel): the first pass's fragment program reading
+    // the source at uv (the blur pass's output is the source), with the noise taken at pixel
+    // (the output pixel's texcoord) and the RGB mask blended at uv (rgbMaskOffset).
+    // @lift postprocess
+
+    // float4 finalPostprocess(float2 texcoord): the final pass's fragment program, its read of
+    // the intermediate texture replaced by postprocess at the curved position.
+    // @lift final
+
+    float4 frag(v2f i) : SV_Target
+    {
+        return finalPostprocess(i.texcoord);
+    }
+
+    // ---- Pass 1 (drawn with Graphics.Blit; the texcoord is the one passes 2 and 3 look up)
+
+    float4 fragLut(v2f_img i) : SV_Target
+    {
+        float2 uv = bend(i.uv);
+        if (outside(uv)) return float4(0.0, 0.0, 0.0, 0.0);
+        // The final pass's mask and vignette strengths with the intermediate's alpha of 1.
+        float factor = (1.0 - maskStr + maskStr * mask(i.uv)) *
+                       (1.0 - vignetteStr + vignetteStr * vignette(uv));
+        return float4(columnPattern(uv.x) * 0.5, factor);
+    }
+
+    // ---- Passes 2 and 3
+
+    struct v2fFast
+    {
+        float4 position : SV_POSITION;
+        float2 texcoord : TEXCOORD0; // lookup texture
+        float2 center : TEXCOORD1;   // B, also for the noise
+        float2 red : TEXCOORD2;      // B + red's offset: red, and green's bleeding on that side
+        float2 blue : TEXCOORD3;     // B - red's offset
+        float2 up : TEXCOORD4;
+        float2 down : TEXCOORD5;
+        float2 redFar : TEXCOORD6;   // red's bleeding away from the centre
+        float2 blueFar : TEXCOORD7;
+    };
+
+    v2fFast vertFast(appdata_img v)
+    {
+        v2fFast o;
+        o.position = UnityObjectToClipPos(v.vertex);
+        o.texcoord = flipped(v.texcoord);
+        float2 b = bend(o.texcoord);
+        float2 red = float2(_CrtTaps.x, 0.0), far = float2(_CrtTaps.y, 0.0), vertical = float2(0.0, _CrtTaps.w);
+        o.center = b;
+        o.red = b + red;
+        o.blue = b - red;
+        o.up = b + vertical;
+        o.down = b - vertical;
+        o.redFar = b + far;
+        o.blueFar = b - far;
+        return o;
+    }
+
+    // The first pass's bleeding reads each channel's aberrated position and its four
+    // neighbours at bleedDist. With bleedDist close to the aberration offset, green's side
+    // neighbours are red's and blue's own taps, and red's and blue's inner side neighbours
+    // the centre: 11 taps instead of 15.
+    half4 fast(v2fFast i, bool transform)
+    {
+        half4 lut = tex2D(_CrtLut, i.texcoord);
+        half4 center = tex2D(_MainTex, i.center);
+        half4 red = tex2D(_MainTex, i.red);
+        half4 blue = tex2D(_MainTex, i.blue);
+        half4 up = tex2D(_MainTex, i.up);
+        half4 down = tex2D(_MainTex, i.down);
+        half redFar = tex2D(_MainTex, i.redFar).r;
+        half blueFar = tex2D(_MainTex, i.blueFar).b;
+        float2 vertical = float2(0.0, _CrtTaps.w);
+        half redUp = tex2D(_MainTex, i.red + vertical).r;
+        half redDown = tex2D(_MainTex, i.red - vertical).r;
+        half blueUp = tex2D(_MainTex, i.blue + vertical).b;
+        half blueDown = tex2D(_MainTex, i.blue - vertical).b;
+
+        half3 aber = half3(red.r, center.g, blue.b);
+        half3 color = lerp(aber, max(center.rgb, aber), (half)blurStr);
+        half3 bleed = half3(max(max(redUp, redDown), max(redFar, center.r)),
+                            max(max(up.g, down.g), max(red.g, blue.g)),
+                            max(max(blueUp, blueDown), max(blueFar, center.b)));
+        color = lerp(color, max(color, bleed), (half)bleedStr);
+
+        half3 noise = tex2D(_CrtNoise, i.center * _CrtNoiseST.xy + _CrtNoiseST.zw).rgb;
+        color = lerp(color, max(color, noise), (half)colorNoiseStr);
+        color = lerp(color, max(color, noise.r), (half)monoNoiseStr);
+        color = saturate(color - lut.rgb * (half)_CrtOffsetScale);
+        if (transform) color = levels(color);
+        return half4(color * lut.a, 1.0);
+    }
+
+    half4 fragFast(v2fFast i) : SV_Target { return fast(i, false); }
+    half4 fragFastColor(v2fFast i) : SV_Target { return fast(i, true); }
+
+    // ---- Passes 5, 6 and 7: passes 2 and 3 in two steps, for GPUs that pay for each texture
+    //      read (the PS Vita's). With the aberration a whole number of texels (the game's 1),
+    //      pass 5 copies the source with red and blue moved by it, the aberrated picture
+    //      A(q) = (T.r(q + red), T.g(q), T.b(q - red)), reading texel centres. As the shift is
+    //      whole texels, a bilinear read of A at a position is the same as the reads of T it
+    //      stands for. Pass 6 then gets all 15 values passes 2 and 3 use from five reads of A,
+    //      at B, B +- red and B +- the bleeding distance vertically (B + 2 red stands for
+    //      the first pass's B + red + bleedDist, as pass 2 has B for B + red - bleedDist).
+    //      Every read is non-dependent: the vertex shader computes the noise position too.
+
+    sampler2D _CrtAber;
+
+    struct v2fAberCopy
+    {
+        float4 position : SV_POSITION;
+        float2 red : TEXCOORD0;
+        float2 center : TEXCOORD1;
+        float2 blue : TEXCOORD2;
+    };
+
+    v2fAberCopy vertAberCopy(appdata_img v)
+    {
+        v2fAberCopy o;
+        o.position = UnityObjectToClipPos(v.vertex);
+        o.center = v.texcoord;
+        o.red = v.texcoord + float2(_CrtTaps.x, 0.0);
+        o.blue = v.texcoord - float2(_CrtTaps.x, 0.0);
+        return o;
+    }
+
+    half4 fragAberCopy(v2fAberCopy i) : SV_Target
+    {
+        return half4(tex2D(_MainTex, i.red).r, tex2D(_MainTex, i.center).g, tex2D(_MainTex, i.blue).b, 1.0);
+    }
+
+    struct v2fAber
+    {
+        float4 position : SV_POSITION;
+        float2 texcoord : TEXCOORD0; // lookup texture
+        float2 center : TEXCOORD1;   // B
+        float2 right : TEXCOORD2;    // B + red's offset
+        float2 left : TEXCOORD3;     // B - red's offset
+        float2 up : TEXCOORD4;
+        float2 down : TEXCOORD5;
+        float2 noise : TEXCOORD6;
+    };
+
+    v2fAber vertAber(appdata_img v)
+    {
+        v2fAber o;
+        o.position = UnityObjectToClipPos(v.vertex);
+        o.texcoord = flipped(v.texcoord);
+        float2 b = bend(o.texcoord);
+        float2 red = float2(_CrtTaps.x, 0.0), vertical = float2(0.0, _CrtTaps.w);
+        o.center = b;
+        o.right = b + red;
+        o.left = b - red;
+        o.up = b + vertical;
+        o.down = b - vertical;
+        o.noise = b * _CrtNoiseST.xy + _CrtNoiseST.zw;
+        return o;
+    }
+
+    half4 aber(v2fAber i, bool transform)
+    {
+        half4 lut = tex2D(_CrtLut, i.texcoord);
+        half3 a = tex2D(_CrtAber, i.center).rgb;  // T.r(B + red), T.g(B), T.b(B - red)
+        half3 right = tex2D(_CrtAber, i.right).rgb; // T.r(B + 2 red), T.g(B + red), T.b(B)
+        half3 left = tex2D(_CrtAber, i.left).rgb;   // T.r(B), T.g(B - red), T.b(B - 2 red)
+        half3 up = tex2D(_CrtAber, i.up).rgb;
+        half3 down = tex2D(_CrtAber, i.down).rgb;
+        half3 center = half3(left.r, a.g, right.b);
+        half3 color = lerp(a, max(center, a), (half)blurStr);
+        half3 bleed = max(max(up, down), max(right, left));
+        color = lerp(color, max(color, bleed), (half)bleedStr);
+        half3 noise = tex2D(_CrtNoise, i.noise).rgb;
+        color = lerp(color, max(color, noise), (half)colorNoiseStr);
+        color = lerp(color, max(color, noise.r), (half)monoNoiseStr);
+        color = saturate(color - lut.rgb * (half)_CrtOffsetScale);
+        if (transform) color = levels(color);
+        return half4(color * lut.a, 1.0);
+    }
+
+    half4 fragAber(v2fAber i) : SV_Target { return aber(i, false); }
+    half4 fragAberColor(v2fAber i) : SV_Target { return aber(i, true); }
+
+    // ---- Pass 8: pass 6 for the game's own settings (blurStr 1: blur strength 0; no color
+    //      transform), in fewer instructions. Each lerp(c, max(c, x), s) is written as
+    //      max(c, c * (1 - s) + s * x), with s * x stored in the textures where x is one:
+    //      the noise texture holds noise * colorNoiseStr (rgb) and noise.r * monoNoiseStr (a),
+    //      and the lookup texture (pass 9) the RGB mask times its factor, so that
+    //      saturate(c - mask) * factor = max(c * factor - mask * factor, 0) (stored 16 times
+    //      larger, for precision). The source at B
+    //      is one more (cheap, non-dependent) read instead of being put together from A's.
+    //      Its alpha is the factor, not 1 (nothing reads the screen's alpha).
+    half4 fragAberGame(v2fAber i) : SV_Target
+    {
+        half4 lut = tex2D(_CrtLut, i.texcoord);
+        half3 a = tex2D(_CrtAber, i.center).rgb;
+        half3 center = tex2D(_MainTex, i.center).rgb;
+        half3 right = tex2D(_CrtAber, i.right).rgb;
+        half3 left = tex2D(_CrtAber, i.left).rgb;
+        half3 up = tex2D(_CrtAber, i.up).rgb;
+        half3 down = tex2D(_CrtAber, i.down).rgb;
+        half3 color = max(a, center);
+        half3 bleed = max(max(up, down), max(right, left));
+        color = max(color, color * (half)(1.0 - bleedStr) + bleed * (half)bleedStr);
+        half4 noise = tex2D(_CrtNoise, i.noise);
+        color = max(color, color * (half)(1.0 - colorNoiseStr) + noise.rgb);
+        color = max(color, color * (half)(1.0 - monoNoiseStr) + noise.aaa);
+        return half4(max(color * lut.a - lut.rgb * (half)0.0625, (half3)0.0), lut.a); // 0.0625: 1 / pass 9's 16
+    }
+
+    // ---- Pass 9: the lookup texture for pass 8: (pass 1 rgb * _CrtOffsetScale * 16, 1) * factor
+    //      (pass 8 scales the mask back by 0.0625).
+    //      The mask is at most 2 * rgbMaskSep * rgbMaskSub * rgbMaskStr (0.043 in the game);
+    //      16 times that keeps 8-bit steps well under a level of the result.
+    float4 fragLutGame(v2f_img i) : SV_Target
+    {
+        float4 lut = fragLut(i);
+        return float4(saturate(lut.rgb * _CrtOffsetScale * 16.0), 1.0) * lut.a;
+    }
+
+    // ---- Pass 4: not the filter. The source at B times the lookup factor, the floor a
+    //      full-screen pass over the grid costs (-crt-pass 4, for cost measurements).
+    half4 fragFloor(v2fFast i) : SV_Target
+    {
+        return half4(tex2D(_MainTex, i.center).rgb * tex2D(_CrtLut, i.texcoord).a, 1.0);
+    }
+    ENDCG
+
+    SubShader {
+        ZClip On
+        ZTest Always
+        ZWrite Off
+        Cull Off
+        Pass {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment fragLut
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vertFast
+            #pragma fragment fragFast
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vertFast
+            #pragma fragment fragFastColor
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vertFast
+            #pragma fragment fragFloor
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vertAberCopy
+            #pragma fragment fragAberCopy
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vertAber
+            #pragma fragment fragAber
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vertAber
+            #pragma fragment fragAberColor
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vertAber
+            #pragma fragment fragAberGame
+            ENDCG
+        }
+        Pass {
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment fragLutGame
+            ENDCG
+        }
+    }
+}

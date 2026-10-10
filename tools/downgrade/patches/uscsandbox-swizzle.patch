@@ -1,0 +1,181 @@
+License: this patch changes USCSandbox (https://github.com/nesrak1/USCSandbox), which has
+no license file of its own and reworks code from AssetRipper, under the GNU General Public
+License version 3. This patch is offered under the GNU General Public License version 3
+(GPL-3.0), like the code it modifies, and is not covered by the MIT license of the rest of
+this repository (see THIRD_PARTY_NOTICES).
+
+What it changes: grab passes are written as GrabPass blocks, constant buffer reads keep
+their swizzle order, and a write to an output register that packs several semantics is split
+per semantic. git apply skips these lines before the first diff.
+
+diff --git a/USCSandbox/Processor/ShaderProcessor.cs b/USCSandbox/Processor/ShaderProcessor.cs
+index 2108c20..9b5dd3f 100644
+--- a/USCSandbox/Processor/ShaderProcessor.cs
++++ b/USCSandbox/Processor/ShaderProcessor.cs
+@@ -567,7 +567,16 @@ namespace USCSandbox.Processor
+                     _sb.AppendLine($"UsePass \"{usePassName}\"");
+                     continue;
+                 }
+-                
++
++                // SerializedPassType: 0 Normal, 1 Use, 2 Grab. A grab pass has no programs;
++                // written as a plain Pass it becomes a fixed-function pass that draws white.
++                if (pass["m_Type"].AsInt == 2)
++                {
++                    var grabTexture = pass["m_TextureName"].AsString;
++                    _sb.AppendLine(string.IsNullOrEmpty(grabTexture) ? "GrabPass { }" : $"GrabPass {{ \"{grabTexture}\" }}");
++                    continue;
++                }
++
+                 _sb.AppendLine("Pass {");
+                 _sb.Indent();
+                 {
+diff --git a/USCSandbox/UltraShaderConverter/USIL/Metadders/USILCBufferMetadder.cs b/USCSandbox/UltraShaderConverter/USIL/Metadders/USILCBufferMetadder.cs
+index 4123eb1..1f731fc 100644
+--- a/USCSandbox/UltraShaderConverter/USIL/Metadders/USILCBufferMetadder.cs
++++ b/USCSandbox/UltraShaderConverter/USIL/Metadders/USILCBufferMetadder.cs
+@@ -121,27 +121,31 @@ namespace AssetRipper.Export.Modules.Shaders.UltraShaderConverter.USIL.Metadders
+                 if (cbParams.Count > 1)
+                 {
+                     operand.operandType = USILOperandType.Multiple;
+-                    operand.children = new USILOperand[cbParams.Count];
+ 
+-                    int i = 0;
+-                    List<string> paramStrs = new List<string>();
+-                    foreach (ConstantBufferParameter param in cbParams)
++                    // One child per component, in the operand's swizzle order. Grouping by
++                    // parameter in buffer order would turn cb0[5].yx into float2(x, y).
++                    List<USILOperand> children = new List<USILOperand>();
++                    foreach (int address in operandMaskAddresses)
+                     {
++                        ConstantBufferParameter? param = cbParams.FirstOrDefault(p =>
++                            address >= p.Index && address < p.Index + p.Rows * p.Columns * 4 * Math.Max(1, p.ArraySize));
++                        if (param == null)
++                        {
++                            continue;
++                        }
++
+                         USILOperand childOperand = new USILOperand();
+                         childOperand.operandType = USILOperandType.ConstantBuffer;
+-
+-                        // apparently switch has column long, whereas directx has row long
+-                        int maxRowOrColumnLength = Math.Max(param.Rows, param.Columns);
+-
+-                        childOperand.mask = MatchMaskToConstantBuffer(operand.mask, param.Index, maxRowOrColumnLength);
++                        childOperand.mask = new[] { (address - param.Index) / 4 % 4 };
+                         childOperand.metadataName = param.ParamName;
+                         childOperand.metadataNameAssigned = true;
+                         childOperand.arrayRelative = operand.arrayRelative;
+                         childOperand.arrayIndex -= param.Index / 16;
+                         childOperand.metadataNameWithArray = operand.arrayRelative != null && (!param.IsMatrix || param.ArraySize > 1);
+ 
+-                        operand.children[i++] = childOperand;
++                        children.Add(childOperand);
+                     }
++                    operand.children = children.ToArray();
+                 }
+                 else if (cbParams.Count == 1)
+                 {
+@@ -170,7 +174,10 @@ namespace AssetRipper.Export.Modules.Shaders.UltraShaderConverter.USIL.Metadders
+                     operand.metadataNameAssigned = true;
+                     operand.metadataNameWithArray = param.ArraySize > 1;
+ 
+-                    if (cbMasks.Count == maxRowOrColumnLength && !param.IsMatrix)
++                    // Only an in-order full read (e.g. .xyzw) can be written as the bare name;
++                    // reordered or repeated components (e.g. .zwzw) must keep their swizzle.
++                    if (cbMasks.Count == maxRowOrColumnLength && !param.IsMatrix &&
++                        cbMasks.Select((m, i) => m == i).All(x => x))
+                     {
+                         operand.displayMask = false;
+                     }
+diff --git a/USCSandbox/UltraShaderConverter/USIL/Metadders/USILInputOutputMetadder.cs b/USCSandbox/UltraShaderConverter/USIL/Metadders/USILInputOutputMetadder.cs
+index 5df049a..4e5c843 100644
+--- a/USCSandbox/UltraShaderConverter/USIL/Metadders/USILInputOutputMetadder.cs
++++ b/USCSandbox/UltraShaderConverter/USIL/Metadders/USILInputOutputMetadder.cs
+@@ -8,6 +8,7 @@ namespace AssetRipper.Export.Modules.Shaders.UltraShaderConverter.USIL.Metadders
+     {
+         public bool Run(UShaderProgram shader, ShaderParams shaderParams)
+         {
++            SplitPackedOutputWrites(shader);
+             List<USILInstruction> instructions = shader.instructions;
+             foreach (USILInstruction instruction in instructions)
+             {
+@@ -93,6 +94,78 @@ namespace AssetRipper.Export.Modules.Shaders.UltraShaderConverter.USIL.Metadders
+             }
+         }
+ 
++        // One output register can pack several semantics (e.g. o1.xy = TEXCOORD0, o1.zw =
++        // TEXCOORD1). A write covering more than one of them is split into one instruction
++        // per semantic; otherwise only the last semantic would receive the value.
++        private static void SplitPackedOutputWrites(UShaderProgram shader)
++        {
++            List<USILInstruction> instructions = shader.instructions;
++            for (int n = 0; n < instructions.Count; n++)
++            {
++                USILInstruction instruction = instructions[n];
++                USILOperand? dest = instruction.destOperand;
++                if (dest == null || dest.operandType != USILOperandType.OutputRegister || dest.mask.Length < 2)
++                {
++                    continue;
++                }
++
++                List<USILInputOutput> outputs = shader.outputs.Where(
++                    o => o.register == dest.registerIndex && dest.mask.Any(m => (o.mask & (1 << m)) != 0)
++                ).ToList();
++                if (outputs.Count < 2)
++                {
++                    continue;
++                }
++
++                List<USILInstruction> parts = new List<USILInstruction>();
++                bool componentWise = true;
++                foreach (USILInputOutput output in outputs)
++                {
++                    int[] positions = Enumerable.Range(0, dest.mask.Length)
++                        .Where(p => (output.mask & (1 << dest.mask[p])) != 0).ToArray();
++                    USILInstruction part = new USILInstruction
++                    {
++                        instructionType = instruction.instructionType,
++                        saturate = instruction.saturate,
++                        commented = instruction.commented,
++                        isIntVariant = instruction.isIntVariant,
++                        isIntUnsigned = instruction.isIntUnsigned,
++                        destOperand = new USILOperand(dest) { mask = positions.Select(p => dest.mask[p]).ToArray() },
++                    };
++                    foreach (USILOperand source in instruction.srcOperands)
++                    {
++                        USILOperand copy = new USILOperand(source);
++                        if (source.immValueFloat.Length == dest.mask.Length)
++                        {
++                            copy.immValueFloat = positions.Select(p => source.immValueFloat[p]).ToArray();
++                        }
++                        if (source.immValueInt.Length == dest.mask.Length)
++                        {
++                            copy.immValueInt = positions.Select(p => source.immValueInt[p]).ToArray();
++                        }
++                        if (source.mask.Length == dest.mask.Length)
++                        {
++                            copy.mask = positions.Select(p => source.mask[p]).ToArray();
++                        }
++                        else if (source.mask.Length > 1)
++                        {
++                            componentWise = false;
++                        }
++                        part.srcOperands.Add(copy);
++                    }
++                    parts.Add(part);
++                }
++
++                if (!componentWise)
++                {
++                    continue;
++                }
++                instructions.RemoveAt(n);
++                instructions.InsertRange(n, parts);
++                n += parts.Count - 1;
++            }
++        }
++
+         private static int[] MatchMaskToInputOutput(int[] mask, int maskTest, bool moveSwizzles)
+         {
+             // Move swizzles (for example, .zw -> .xy) based on first letter

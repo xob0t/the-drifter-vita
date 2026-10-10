@@ -1,0 +1,55 @@
+Third-party notices
+
+The pipeline is under the MIT license in LICENSE. The parts below carry
+their own terms, which this file reproduces or states.
+
+
+1. tools/downgrade/fastnoise.py: webgl-noise
+
+The noise kernel in fastnoise.py (_noise) is a port of the 2D simplex noise
+function snoise from webgl-noise, by Ian McEwan (Ashima Arts) and Stefan
+Gustavson: https://github.com/ashima/webgl-noise and
+https://github.com/stegu/webgl-noise. Its license:
+
+Copyright (C) 2011 by Ashima Arts (Simplex noise)
+Copyright (C) 2011-2016 by Stefan Gustavson (Classic noise and others)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+2. tools/downgrade/patches/uscsandbox-swizzle.patch: GPL-3.0
+
+This patch changes USCSandbox (https://github.com/nesrak1/USCSandbox), the
+shader decompiler the pipeline downloads at a pinned commit. USCSandbox has
+no license file of its own and reworks code from AssetRipper
+(https://github.com/AssetRipper/AssetRipper), which is under the GNU General
+Public License version 3. The patch is offered under the GNU General Public
+License version 3 (GPL-3.0), like the code it modifies. It is not covered by
+the MIT license in LICENSE. The license text is at
+https://www.gnu.org/licenses/gpl-3.0.txt.
+
+
+3. Not included
+
+The repository holds none of The Drifter's files. The pipeline reads them
+from your installed copy, including the game's CRT filter shaders, from
+which it makes the one-pass CRT shader during the project stage
+(tools/downgrade/crt_shader.py). Unity, the PS Vita SDK, AssetRipper,
+USCSandbox, Mono.Cecil and the other tools the pipeline calls are not
+included either; you obtain them under their own terms.
