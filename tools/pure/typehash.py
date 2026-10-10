@@ -56,10 +56,11 @@ class HashBuilder:
             }
         )
 
-    def value(self, m, level, name, meta=0):
+    def value(self, m, level, name, meta=0, element=False):
         k = m['k']
         if k == 'prim':
-            self.add(level, PRIM[m['t']], name, m['size'], meta | (ALIGN if m['size'] < 4 else 0))
+            pad = m['size'] < 4 and not element  # array elements pack; the array aligns after them
+            self.add(level, PRIM[m['t']], name, m['size'], meta | (ALIGN if pad else 0))
         elif k == 'bitfield':
             self.add(level, 'BitField', name, 4, meta, 2)
             self.add(level + 1, 'unsigned int', 'm_Bits', 4)
@@ -101,7 +102,7 @@ class HashBuilder:
             unaligned = e['k'] in ('string', 'prim', 'bitfield') or (e['k'] == 'struct' and not user)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN if unaligned else 0)
             self.add(level + 2, 'int', 'size', 4)
-            self.value(e, level + 2, 'data')
+            self.value(e, level + 2, 'data', element=True)
         elif k == 'struct' and m['t'] in ENGINE and m.get('full', '').startswith('UnityEngine.'):
             t, size, ver, fields = ENGINE[m['t']]
             self.add(level, t, name, size, meta, ver)
@@ -175,6 +176,11 @@ def builtin_hash(class_id, version):
     nodes = tpk_nodes(class_info(class_id, version).ReleaseRootNode)
     if class_id in RELEASE_ROOT:
         nodes[0]['m_Type'] = RELEASE_ROOT[class_id]
+    if class_id == 243:
+        # The TPK marks AudioMixerGroup.m_Children aligned; the player's tree does not.
+        for n in nodes:
+            if n['m_Name'] == 'm_Children' and n['m_Level'] == 1:
+                n['m_MetaFlag'] &= ~ALIGN
     return type_hash(nodes)
 
 

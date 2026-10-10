@@ -10,6 +10,7 @@ import argparse
 import collections
 import sys
 import time
+from typing import ClassVar
 
 import animation
 import classes
@@ -116,7 +117,7 @@ class Build:
 
     # Builders the other modules provide, by class: f(build, file_name, guid, file_id, asset) ->
     # (data, tree) or None while that class is not done yet. Stream data goes through self.streams.
-    IMPORTED = {}
+    IMPORTED: ClassVar[dict] = {}
 
     def shared(self, file_name):
         """A sharedassetsN.assets / resources.assets / globalgamemanagers.assets file. Returns (bytes,
