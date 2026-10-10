@@ -818,8 +818,8 @@ def main():
             f'again or build with the same --diag'
         )
     if args.stage in ('build', 'all') and args.pure:
-        if args.platform != 'vita':
-            parser.error('--pure builds the PS Vita player only')
+        if args.platform != 'vita' or args.version != TARGET:
+            parser.error(f'--pure builds the PS Vita player for Unity {TARGET} only')
         sys.path.insert(0, str(HERE.parent / 'pure'))
         import make
 

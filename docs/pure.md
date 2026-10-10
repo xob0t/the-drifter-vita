@@ -5,11 +5,12 @@
 ```powershell
 uv run tools/pure/make.py           # builds/drifter-2018.2.19f1-vita-pure, about 5 minutes warm
 uv run tools/pure/make.py --vpk     # and the VPK beside it
+uv run tools/downgrade/pipeline.py build --platform vita --pure   # the same, into the pipeline's build folder
 uv run tools/pure/build.py --platform windows   # Windows data from the PC-variant project, for play-testing
 uv run tools/pure/windows.py --own-data         # a Windows player around it
 ```
 
-It has not run on a console yet. Every piece is checked against the player Unity built from the same project (`builds/drifter-2018.2.19f1-vita-diag`, since the project is in diag mode), object by object and where possible byte by byte; the Windows build is play-tested against the original game with the parity tools ([parity.md](parity.md)).
+It has not run on a console yet. Every piece is checked against the player Unity built from the same project (`builds/drifter-2018.2.19f1-vita-diag`, since the project is in diag mode), object by object and where possible byte by byte (so `pipeline.py build --pure --diag`, which writes into that folder, replaces the reference the checks read); the Windows build is play-tested against the original game with the parity tools ([parity.md](parity.md)).
 
 ## How it works
 
