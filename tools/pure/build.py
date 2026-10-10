@@ -262,6 +262,49 @@ def compare(name, data, reference=paths.REFERENCE_MEDIA):
     return f'differs at byte {first} (sizes {len(data)} vs reference {len(ref)})'
 
 
+def write_all(build, only=frozenset(), compare_files=False):
+    """Writes every file of the player's data (or those named in `only`), printing each."""
+    ref = build.target.reference
+    for i in range(len(build.layout.scenes)):
+        name = f'level{i}'
+        if only and name not in only:
+            continue
+        start = time.time()
+        data = build.level(i)
+        build.write(name, data)
+        note = compare(name, data, ref) if compare_files else ''
+        print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}')
+    for name in build.files:
+        if only and name not in only:
+            continue
+        start = time.time()
+        data, missing = build.shared(name)
+        build.write(name, data)
+        note = compare(name, data, ref) if compare_files else ''
+        gaps = f'; not built yet: {dict(missing)}' if missing else ''
+        print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
+    if not only or 'Resources/unity_builtin_extra' in only:
+        if build.target.name == 'windows':
+            import windows_builtin_extra
+
+            data = windows_builtin_extra.build_extra(build)
+        else:
+            data = builtin_extra.build_extra(build)
+        build.write('Resources/unity_builtin_extra', data)
+        note = compare('Resources/unity_builtin_extra', data, ref) if compare_files else ''
+        print(f'Resources/unity_builtin_extra: {len(data)} bytes {note}')
+    if not only or 'globalgamemanagers' in only:
+        data = build.globalgamemanagers()
+        build.write('globalgamemanagers', data)
+        print(
+            f'globalgamemanagers: {len(data)} bytes', compare('globalgamemanagers', data, ref) if compare_files else ''
+        )
+    for name, data in build.streams.items():
+        build.write(name, bytes(data))
+        note = compare(name, bytes(data), ref) if compare_files else ''
+        print(f'{name}: {len(data)} bytes {note}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--platform', choices=sorted(TARGETS), default='vita')
@@ -274,47 +317,7 @@ def main():
 
         windows_build.register(Build)
     out = args.out or (paths.OUT if args.platform == 'vita' else paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-pure')
-    build = Build(out, args.platform)
-    ref = build.target.reference
-    only = set(filter(None, args.only.split(',')))
-    for i in range(len(build.layout.scenes)):
-        name = f'level{i}'
-        if only and name not in only:
-            continue
-        start = time.time()
-        data = build.level(i)
-        build.write(name, data)
-        note = compare(name, data, ref) if args.compare else ''
-        print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}')
-    for name in build.files:
-        if only and name not in only:
-            continue
-        start = time.time()
-        data, missing = build.shared(name)
-        build.write(name, data)
-        note = compare(name, data, ref) if args.compare else ''
-        gaps = f'; not built yet: {dict(missing)}' if missing else ''
-        print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
-    if not only or 'Resources/unity_builtin_extra' in only:
-        if build.target.name == 'windows':
-            import windows_builtin_extra
-
-            data = windows_builtin_extra.build_extra(build)
-        else:
-            data = builtin_extra.build_extra(build)
-        build.write('Resources/unity_builtin_extra', data)
-        note = compare('Resources/unity_builtin_extra', data, ref) if args.compare else ''
-        print(f'Resources/unity_builtin_extra: {len(data)} bytes {note}')
-    if not only or 'globalgamemanagers' in only:
-        data = build.globalgamemanagers()
-        build.write('globalgamemanagers', data)
-        print(
-            f'globalgamemanagers: {len(data)} bytes', compare('globalgamemanagers', data, ref) if args.compare else ''
-        )
-    for name, data in build.streams.items():
-        build.write(name, bytes(data))
-        note = compare(name, bytes(data), ref) if args.compare else ''
-        print(f'{name}: {len(data)} bytes {note}')
+    write_all(Build(out, args.platform), set(filter(None, args.only.split(','))), args.compare)
     return 0
 
 
