@@ -5,10 +5,12 @@ description = "Translate The Drifter's PC build into a Unity 2018.2 project"
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
+    "lz4>=4.4.5",
     "numpy>=2.5.3",
     "pillow>=12.3.0",
     # vita.py crashes --pull reads the dump with vita-parse-core, which imports elftools.common.py3compat;
     # later releases removed it.
+    "pycryptodome>=3.24.0",
     "pyelftools==0.29",
     # Downloads check TLS with Windows' certificate store (common.py): a fresh Windows fetches root
     # certificates on first use, so Python's own copy of the store lacks some (archive.org's).
