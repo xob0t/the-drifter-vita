@@ -65,9 +65,15 @@ def main():
     parser.add_argument('--show', type=int, default=4)
     args = parser.parse_args()
     layout = Layout()
-    files = args.files or sorted(
-        p.name for p in paths.REFERENCE_MEDIA.iterdir() if p.name.startswith('sharedassets') and p.suffix == '.assets'
-    ) + ['resources.assets', 'globalgamemanagers.assets']
+    files = args.files or [
+        *sorted(
+            p.name
+            for p in paths.REFERENCE_MEDIA.iterdir()
+            if p.name.startswith('sharedassets') and p.suffix == '.assets'
+        ),
+        'resources.assets',
+        'globalgamemanagers.assets',
+    ]
     totals = collections.Counter()
     for f in files:
         ref, ours = reference_sequence(f), our_sequence(layout, f)

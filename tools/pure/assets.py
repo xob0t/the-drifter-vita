@@ -113,9 +113,9 @@ class AssetDB:
             a.object_refs = {(g, int(fid)) for fid, g in REF.findall(body)}
         else:
             a.classes = {fid: cid for cid, fid in IMPORTED[ext]}
-            if a.classes.get(2800000) == 28 and re.search(r'^  textureType: 8$', text, re.M):
-                if re.search(r'^  spriteMode: 1$', text, re.M):
-                    a.classes[21300000] = 213
+            sprite = re.search(r'^  textureType: 8$', text, re.M) and re.search(r'^  spriteMode: 1$', text, re.M)
+            if a.classes.get(2800000) == 28 and sprite:
+                a.classes[21300000] = 213  # a texture imported as one sprite
             a.refs = set(GUID.findall(text)) - {guid}
         return a
 
