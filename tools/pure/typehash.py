@@ -97,7 +97,9 @@ class HashBuilder:
             e = m['e']
             # An array of a user class is labelled with the class name, other arrays are 'vector'
             user = e['k'] == 'struct' and not (e['t'] in ENGINE and e.get('full', '').startswith('UnityEngine.'))
-            self.add(level, e['t'] if user else 'vector', name, -1, meta)
+            # a C# char[] marks the vector itself aligned too (byte[] and others do not)
+            char = e['k'] == 'prim' and e['t'] == 'char'
+            self.add(level, e['t'] if user else 'vector', name, -1, meta | (ALIGN if char else 0))
             # the element run is padded to 4 bytes when it can end unaligned
             unaligned = e['k'] in ('string', 'prim', 'bitfield') or (e['k'] == 'struct' and not user)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN if unaligned else 0)

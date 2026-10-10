@@ -17,13 +17,14 @@ import audio
 import builtin_copies
 import classes
 import convert
+import managers
 import mixer
 import paths
+import preload as preloadlib
 import scene as scenelib
 import scripts as scriptlib
 import shader_object
 import typehash
-import UnityPy
 from layout import Layout
 from placement import AssetContext, Placement, first_path_id
 from writer import SerializedWriter, TypeHashes
@@ -58,7 +59,10 @@ class Build:
         self.placement = Placement(self.layout, self.files)
         self.scripts = scriptlib.Scripts()
         self.project = classes.Project(paths.PROJECT)
-        self.monoscripts = self.reference_monoscripts()  # until managers.py builds globalgamemanagers.assets
+        self.entries = managers.monoscripts(self.layout)
+        self.monoscripts = managers.monoscript_ids(self.entries)
+        managers.register(self.placement, self.layout, self.entries)
+        self.preloader = preloadlib.Preload(self.layout, self.placement)
         self.trees = {}
         version = convert.VERSION
 
@@ -68,16 +72,6 @@ class Build:
             return typehash.script_id(name, ns, asm), typehash.script_hash(model, version), self.monoscripts[script]
 
         self.hashes = TypeHashes(script_info, self.texture_sprite_hashes())
-
-    @staticmethod
-    def reference_monoscripts():
-        env = UnityPy.load(str(paths.REFERENCE_MEDIA / 'globalgamemanagers.assets'))
-        out = {}
-        for o in env.objects:
-            if o.type.name == 'MonoScript':
-                t = o.read_typetree()
-                out[(t['m_AssemblyName'], t['m_Namespace'], t['m_ClassName'])] = o.path_id
-        return out
 
     @staticmethod
     def texture_sprite_hashes():
@@ -131,6 +125,11 @@ class Build:
         start = first_path_id(file_name)
         out = SerializedWriter(file_name)
         missing = collections.Counter()
+        if start == 2:  # sharedassetsN.assets and globalgamemanagers.assets open with their PreloadData
+            out.add(1, 150, self.preloader.preload(file_name))
+        if file_name == 'globalgamemanagers.assets':
+            for s in self.entries:
+                out.add(s.path_id, 115, dict(s.fields))
         db = self.layout.db
         mbs = [db.by_guid[g].docs[fid] for g, fid, cid in objects if cid == 114]
         self.scripts.load_models({self.scripts.resolve(d.fields['m_Script'], d.fields) for d in mbs} - {None})
@@ -165,6 +164,12 @@ class Build:
                 continue
             out.add(start + i, cid, data, tree, script)
         return out.write(self.hashes), missing
+
+    def globalgamemanagers(self):
+        out = SerializedWriter('globalgamemanagers')
+        for path_id, class_id, data in managers.managers(self.layout, self.placement, self.entries):
+            out.add(path_id, class_id, data)
+        return out.write(self.hashes)
 
     def write(self, name, data):
         path = self.media / name
@@ -211,6 +216,10 @@ def main():
         note = compare(name, data) if args.compare else ''
         gaps = f'; not built yet: {dict(missing)}' if missing else ''
         print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
+    if not only or 'globalgamemanagers' in only:
+        data = build.globalgamemanagers()
+        build.write('globalgamemanagers', data)
+        print(f'globalgamemanagers: {len(data)} bytes', compare('globalgamemanagers', data) if args.compare else '')
     for name, data in build.streams.items():
         build.write(name, bytes(data))
         note = compare(name, bytes(data)) if args.compare else ''
