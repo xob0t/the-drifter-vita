@@ -26,7 +26,7 @@ It has not run on a console yet. Every piece is checked against the player Unity
 
 - Levels: byte-identical, except the component the editor adds while loading each scene (below).
 - Every YAML asset (sprites, prefabs, materials, clips, controllers, the mixer, MonoBehaviours), every texture's fields and uncompressed pixels, fonts, text assets, PreloadData, MonoScripts: identical to the reference.
-- Shaders: every program, binding and parsed form identical; the pass ids' low bits (an unknown hash) and the LZ4 encoder differ.
+- Shaders: every program, binding and parsed form identical; the pass ids' low bits (an unknown hash) and the LZ4 encoder differ. The ids still group the 157 passes exactly as Unity's do: two passes share an id in our build only where they share one in Unity's.
 - Audio: every AudioClip field, FSB5 header and stream offset identical; the HEVAG samples come from our encoder (Sony's is closed), at a median 39.5 dB SNR against the source (Unity's: 35.1 dB).
 - DXT textures come from quicktex, slightly closer to the source than Unity's encoder.
 - Code: global-metadata.dat and resources.dat identical; the module has the same sections, imports, exports and app info, linked in another order (Unity's own builds differ the same way).
