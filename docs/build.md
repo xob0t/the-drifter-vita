@@ -25,12 +25,12 @@ The steps below are for Windows 10 or 11, x64.
    uv run tools/setup.py --vita                                  # PS Vita app
    ```
 
-3. Give the editor a license, or patch it with unigate (see [The Unity license](#the-unity-license)).
+3. For a Windows player, give the editor a license, or patch it with unigate (see [The Unity license](#the-unity-license)). The PS Vita app is built without running the editor, so it needs no license unless you build it with `--unity`.
 
 4. Check that everything is in place:
 
    ```powershell
-   uv run tools/setup.py doctor --target vita --license    # or windows
+   uv run tools/setup.py doctor --target vita                 # or: --target windows --license
    ```
 
 Then build: [Windows](#2-build-a-windows-player) or [PS Vita](#3-build-the-ps-vita-app).
@@ -74,7 +74,7 @@ It sets `SCE_PSP2_SDK_DIR` to the SDK folder and `SCE_ROOT_DIR` to the SCE folde
 
 ### The Unity license
 
-The editor has to start in batch mode with the build targets you need, and the script can't activate a license for you. Either activate one in the editor, or remove the license checks of 2017.x to 2018.2.x editors with [unigate](https://github.com/xob0t/unigate), with Unity closed (`--restore` undoes it):
+Windows players, and the PS Vita app built with `--unity`, are built by the editor. It has to start in batch mode with the build targets you need, and the script can't activate a license for you. Either activate one in the editor, or remove the license checks of 2017.x to 2018.2.x editors with [unigate](https://github.com/xob0t/unigate), with Unity closed (`--restore` undoes it):
 
 ```powershell
 git clone https://github.com/xob0t/unigate
@@ -98,7 +98,7 @@ A first build needs free space on the repository's drive: about 10 GB for a Wind
 
 ### Node.js
 
-With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), the build stage runs a local Unity Cache Server (port 8126, cache in `work/unity-cache`). A first Vita build then takes about 40 minutes instead of 100: before Unity's own import, several editors import the game's audio at once and leave it in the cache (see [First build times](#first-build-times)). The cache also saves repeated imports when you rebuild from scratch. It keeps a copy of the imported data, about 2 GB for the Vita project, and the import editors need about 0.7 GB of memory each.
+With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), an editor build runs a local Unity Cache Server (port 8126, cache in `work/unity-cache`). A first Vita build with `--unity` then takes about 40 minutes instead of 100: before Unity's own import, several editors import the game's audio at once and leave it in the cache (see [First build times](#first-build-times)). The cache also saves repeated imports when you rebuild from scratch. It keeps a copy of the imported data, about 2 GB for the Vita project, and the import editors need about 0.7 GB of memory each.
 
 ### Installing by hand
 
@@ -139,7 +139,9 @@ uv run tools/downgrade/pipeline.py all --platform vita
 uv run tools/downgrade/pipeline.py package
 ```
 
-`all --platform vita` assembles `work/drifter-2018.2.19f1-vita` and builds the player into `builds/drifter-2018.2.19f1-vita/`. The Vita project converts textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)). `package` turns the build into `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page.
+`all --platform vita` assembles `work/drifter-2018.2.19f1-vita` and builds the player into `builds/drifter-2018.2.19f1-vita/`, without running the Unity editor ([pure.md](pure.md)). A rebuild takes about 5 minutes. `package` turns the build into `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page.
+
+To build with the Unity editor instead, add `--unity` to both commands. The player goes to `builds/drifter-2018.2.19f1-vita-unity/` and the VPK to `builds/drifter-2018.2.19f1-vita-unity.vpk`. This needs a license. The editor converts the textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)).
 
 Install the VPK in VitaShell. `pipeline.py deploy` uploads it to `ux0:data/` over VitaShell's FTP server, or copy it yourself. The app uses the +109 MB memory expansion mode, which the console reads at installation.
 
@@ -149,7 +151,7 @@ With [vitacompanion](https://github.com/devnoname120/vitacompanion) running on t
 
 ### First build times
 
-Measured from scratch on an 8-core, 16-thread Ryzen 7 5800X3D with 32 GB and an SSD, in minutes:
+These are for the editor build (`--unity`). Measured from scratch on an 8-core, 16-thread Ryzen 7 5800X3D with 32 GB and an SSD, in minutes:
 
 | Step | Vita, no Node.js | Vita, Node.js | Windows, Node.js |
 | --- | --- | --- | --- |
@@ -174,11 +176,12 @@ Without Node.js, Unity imports one asset at a time, and the audio is nearly all 
 | `rip`, `project`, `build` | Run one stage. `all` runs the three in order. |
 | `package`, `deploy` | Vita only: make the VPK, or make it and upload it. |
 | `--platform vita` | Build the PS Vita app (always IL2CPP). |
+| `--unity` | Vita: build (or package, or deploy) the app with the Unity editor instead of without it. The output folder gets `-unity`. Windows players always use the editor. |
 | `--backend mono\|il2cpp` | Windows scripting backend, `mono` by default. |
 | `--game <path>` | The game's folder, instead of `DRIFTER_GAME` or the Steam default. |
 | `--version 2018.2.x` | Another 2018.2 editor. 2018.2.19f1 is the newest with a known PS Vita module. |
 | `--diag` | Build the test probe into the player (see [parity.md](parity.md)). The output folder gets `-diag`. |
-| `--development` | Unity's development player. Slower, but fills the profiler markers. |
+| `--development` | Unity's development player (an editor build: on the Vita, with `--unity`). Slower, but fills the profiler markers. |
 | `--skip-checks` | Start the stage without checking its requirements first. |
 | `--import-jobs N` | `build` with the cache server: editors that import the audio at once before the build. The default is three per four hardware threads, at most 16, and one per GB of memory free when the build starts after keeping 4 GB aside; `1` leaves the import to the build's editor alone. |
 

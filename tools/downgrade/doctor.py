@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from common import (
@@ -548,8 +548,8 @@ def check_node():
         'Node.js (Unity Cache Server)',
         bool(node),
         node
-        or f'not found: the first build imports audio in one editor (about {without} min for the Vita instead of '
-        f'{with_node}) and runs without a cache server',
+        or f'not found: a first editor build imports audio in one editor (about {without} min for the Vita, with '
+        f'--unity, instead of {with_node}) and runs without a cache server',
         'winget install OpenJS.NodeJS.LTS',
         required=False,
     )
@@ -654,14 +654,22 @@ def module_checks(target, version):
 
 
 def license_status(target, platform, version, license):
-    """license: the check setup.py has just run, True to run it now, or False to report the last one."""
+    """license: the check setup.py has just run, True to run it now, or False to report the last one. The
+    PS Vita player is built without running the editor unless pipeline.py build gets --unity, so for the vita
+    target the license is optional."""
     if isinstance(license, Check):
-        return license
-    if license:
-        return check_license(version, platform)
-    if license_checked(version, platform):
-        return Check(LICENSE_CHECK, True, f'the editor ran in batch mode with the {platform} target when last checked')
-    return Check(LICENSE_CHECK, True, f'not checked; {SETUP} doctor --target {target} --license starts the editor once')
+        check = license
+    elif license:
+        check = check_license(version, platform)
+    elif license_checked(version, platform):
+        check = Check(LICENSE_CHECK, True, f'the editor ran in batch mode with the {platform} target when last checked')
+    else:
+        check = Check(
+            LICENSE_CHECK, True, f'not checked; {SETUP} doctor --target {target} --license starts the editor once'
+        )
+    if target == 'vita':
+        check = replace(check, required=False, detail=check.detail + ' (only builds with --unity need it)')
+    return check
 
 
 def checks_for(target, game: Path, version=TARGET, license=False):
