@@ -1,20 +1,20 @@
 # Building without the Unity editor
 
-`tools/pure` builds the PS Vita app from the translated project without running the Unity editor. That means no Unity license and no asset import: a build takes about 5 minutes.
+`tools/pure` builds the PS Vita app from the translated project without running the Unity editor. This is the pipeline's default way to build the Vita app. It needs no Unity license and imports no assets, and a rebuild takes about 5 minutes.
 
-It does what Unity's import and build would do for this project. It still uses some files from the Unity installation, but only as data and tools: about 100 MB of CGIncludes, the PS Vita player module, and IL2CPP with its PS Vita plugin. It also uses the PS Vita SDK's compiler and linker (psp2cgc, psp2snc, psp2ld). The pipeline's `rip` and `project` stages are unchanged; this only replaces `build`.
+It does what Unity's import and build would do for this project. It still uses some files from the Unity installation, but only as data and tools: about 100 MB of CGIncludes, the PS Vita player module, and IL2CPP with its PS Vita plugin. It also uses the PS Vita SDK's compiler and linker (psp2cgc, psp2snc, psp2ld). The pipeline's `rip` and `project` stages are the same either way; only `build` differs.
 
 ## Usage
 
 ```powershell
-uv run tools/downgrade/pipeline.py build --platform vita --pure   # into the pipeline's usual build folder
-uv run tools/pure/make.py                                         # into builds/drifter-2018.2.19f1-vita-pure
-uv run tools/pure/make.py --vpk                                   # the same, plus a VPK
+uv run tools/downgrade/pipeline.py build --platform vita           # builds/drifter-2018.2.19f1-vita[-diag]
+uv run tools/downgrade/pipeline.py build --platform vita --unity   # the same with the Unity editor, into -vita-unity[-diag]
+uv run tools/pure/make.py --vpk                                    # the same as the first, plus a VPK
 ```
 
-`--pure` works only for the PS Vita and Unity 2018.2.19f1.
+The editor-free build is for the PS Vita and Unity 2018.2.19f1. Other versions, and Windows players, are built with the editor.
 
-There is also a Windows build, used for play-testing against the original game with the parity tools ([parity.md](parity.md)):
+There is also an editor-free Windows build, outside the pipeline, used for play-testing against the original game with the parity tools ([parity.md](parity.md)):
 
 ```powershell
 uv run tools/pure/build.py --platform windows   # the data, from the PC-variant project
@@ -23,9 +23,9 @@ uv run tools/pure/windows.py --own-data         # a Windows player around it
 
 ## Status
 
-It runs on the console. In a sweep of 40 of the game's 61 rooms on a PS Vita, every room loaded without a crash. Frame rates and logged errors matched the player Unity built, and the screenshots matched apart from timing.
+It runs on the console. In a sweep of 40 of the game's 61 rooms on a PS Vita, every room loaded without a crash. Frame rates and logged errors matched the player Unity built. Most screenshots matched too; the others differed only in timing, or were compared with Unity screenshots from older test runs.
 
-Every part of the output is checked against the player Unity builds from the same project: object by object, and byte by byte where possible. That reference is `builds/drifter-2018.2.19f1-vita-diag` (the project is assembled in diag mode, so Unity's build lands in the `-diag` folder). `pipeline.py build --pure --diag` writes into that same folder, which replaces the reference.
+Every part of the output is checked against the player Unity builds from the same project: object by object, and byte by byte where possible. That reference is the editor's build, `builds/drifter-2018.2.19f1-vita-unity-diag` (or `-vita-unity` when the project is assembled without `--diag`); make it with `pipeline.py build --platform vita --unity`.
 
 ## Differences from Unity's build
 

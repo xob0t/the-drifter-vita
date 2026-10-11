@@ -36,12 +36,11 @@ The repository holds only the recipe. You run it on the copy of The Drifter you 
 
 You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō with VitaShell. Setup downloads Sony's PS Vita SDK 3.570 from archive.org, or takes your own copy.
 
-1. Install [uv](https://docs.astral.sh/uv/), Git and [Node.js](https://nodejs.org/). Node.js is optional, but it cuts the first Vita build from about 100 minutes to about 40.
+1. Install [uv](https://docs.astral.sh/uv/) and Git.
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    winget install Git.Git
-   winget install OpenJS.NodeJS.LTS
    ```
 
 2. Clone this repository. `tools/setup.py` installs the rest: the Unity 2018.2.19f1 editor with its PS Vita module, AssetRipper and the PS Vita SDK with its Target Manager Server and Publishing Tools.
@@ -50,7 +49,7 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
    uv run tools/setup.py --vita                # or: --vita-sdk <your SDK archive or folder>
    ```
 
-3. Activate a Unity license in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). Then check the setup with `uv run tools/setup.py doctor --target vita --license`.
+3. Check the setup with `uv run tools/setup.py doctor --target vita`.
 
 4. Build:
 
@@ -61,9 +60,9 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
 
    The VPK is `builds/drifter-2018.2.19f1-vita.vpk`.
 
-The first build takes about 41 minutes with Node.js, or 100 without. Nearly all of that is Unity importing the game's audio. After that, a run only reimports what changed, about 10 minutes for a rebuild.
+The build doesn't run the Unity editor, so you don't need a Unity license. It only reads files from the editor's installation ([docs/pure.md](docs/pure.md)). A rebuild takes about 5 minutes. The first build takes longer, because it encodes the game's audio and compiles its shaders.
 
-No Unity license? Add `--pure` to the build: `uv run tools/downgrade/pipeline.py all --platform vita --pure` builds the Vita app without running the Unity editor (it still needs the editor installed, for its files). Because nothing is imported, the build step takes about 5 minutes. It is newer and less tested than the editor build; see [docs/pure.md](docs/pure.md).
+To build with the Unity editor instead, add `--unity` to both commands; the VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
 
 Install the VPK with VitaShell. For later builds you don't have to reinstall: start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
 
@@ -81,7 +80,7 @@ You don't need a Windows player for any of this. It's for testing: `uv run tools
 | [docs/parity.md](docs/parity.md)     | The test probe and tools, and how to check a change                             |
 | [docs/switches.md](docs/switches.md) | Every `-compat-*` switch with its default on Windows and on the Vita            |
 | [docs/vitalike.md](docs/vitalike.md) | Measuring CPU costs on a PC slowed to the Vita's speed                          |
-| [docs/pure.md](docs/pure.md)         | The Vita build without the Unity editor, and how it compares with Unity's       |
+| [docs/pure.md](docs/pure.md)         | How the Vita build works without the Unity editor, and how it compares          |
 
 ## License
 

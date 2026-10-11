@@ -10,9 +10,12 @@ import common  # noqa: E402
 TARGET = common.TARGET
 # The translated project the pipeline's rules produce (pipeline.py project --platform vita).
 PROJECT = common.WORK / f'drifter-{TARGET}-vita'
-# The player Unity built from that project: the reference the checks compare against.
-# Unity's build of the current project, which is in diag mode (the probe's DrifterDiag.dll is in).
-REFERENCE = ROOT / 'builds' / f'drifter-{TARGET}-vita-diag'
+# Whether the project has the parity probe in (pipeline.py project --diag); its builds go to -diag folders.
+DIAG_MARKER = PROJECT / 'ProjectSettings' / 'downgrade-diag.txt'
+DIAG = DIAG_MARKER.exists() and DIAG_MARKER.read_text(encoding='utf-8') == 'True'
+# The player Unity built from that project (pipeline.py build --platform vita --unity): the reference the
+# checks compare against.
+REFERENCE = ROOT / 'builds' / (f'drifter-{TARGET}-vita-unity' + ('-diag' if DIAG else ''))
 REFERENCE_MEDIA = REFERENCE / 'Media'
 # Files taken from Unity's installers (CGIncludes, the PS Vita player and its shader includes).
 EDITOR_DATA = common.EDITORS / TARGET / 'Editor' / 'Data'
@@ -22,7 +25,8 @@ SDK = Path(common.setting('SCE_PSP2_SDK_DIR') or r'C:\vitasdk\sdk')
 PSP2CGC = SDK / 'host_tools' / 'bin' / 'psp2cgc.exe'
 # Scratch space and outputs.
 WORK = common.WORK / 'pure'
-OUT = ROOT / 'builds' / f'drifter-{TARGET}-vita-pure'
+# The pipeline's build folder (pipeline.py build --platform vita).
+OUT = ROOT / 'builds' / (f'drifter-{TARGET}-vita' + ('-diag' if DIAG else ''))
 
 # Unity's built-in shader source (Sprites/Default, Unlit/Transparent and the engine's shaders the
 # build compiles), from Unity's download server, pinned by hash.

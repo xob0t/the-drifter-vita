@@ -6,7 +6,8 @@ Stages, each runnable alone:
   rip      AssetRipper exports the game as a project serialized for the target version.
   project  Assemble work/drifter-<version>[-vita]: rewrite assemblies, prune plugins, decompile
            shaders over AssetRipper's dummies, add the build script.
-  build    Import and build the Windows or PS Vita player with the target editor in batch mode.
+  build    Build the player. The PS Vita player is built without running Unity (tools/pure);
+           --unity, and every Windows player, imports and builds it with the editor in batch mode.
   package  PS Vita: turn the build into a VPK.
   deploy   PS Vita: package, then upload the VPK to the console (DRIFTER_VITA_HOST, see common.py).
 
@@ -730,10 +731,11 @@ def deploy_vita(vpk: Path):
 # ---------------------------------------------------------------- main
 
 
-def build_dir(version: str, backend: str, platform: str = 'windows', diag: bool = False):
+def build_dir(version: str, backend: str, platform: str = 'windows', diag: bool = False, unity: bool = False):
+    """unity: a PS Vita player the editor built (--unity), kept apart from the one built without it."""
     suffix = '-diag' if diag else ''
     if platform == 'vita':
-        return ROOT / 'builds' / f'drifter-{version}-vita{suffix}'
+        return ROOT / 'builds' / (f'drifter-{version}-vita' + ('-unity' if unity else '') + suffix)
     return ROOT / 'builds' / (f'drifter-{version}' + ('-il2cpp' if backend == 'il2cpp' else '') + suffix)
 
 
@@ -778,10 +780,11 @@ def main():
         '(default: three per four hardware threads; 1 imports in the build editor alone)',
     )
     parser.add_argument(
-        '--pure',
+        '--unity',
         action='store_true',
-        help='build: make the PS Vita player without running Unity (tools/pure/make.py): no license, no import; '
-        "it reads the installed editor's and PS Vita module's files and the SDK's tools",
+        help='build, package, deploy: the PS Vita player built by the Unity editor, into a separate -unity folder. '
+        f'Without it the Vita player for {TARGET} is built without running Unity (tools/pure/make.py: no license, '
+        "no import; it reads the installed editor's files and the SDK's tools). Windows players always use the editor",
     )
     parser.add_argument(
         '--skip-checks', action='store_true', help="don't check the stage's requirements first (doctor.py's preflight)"
@@ -796,8 +799,12 @@ def main():
         import doctor
 
         doctor.preflight(args.stage, args.platform, args.backend, args.game, args.version)
+    # The editor-free build makes the PS Vita player of the target version; anything else needs the editor.
+    unity = args.unity or args.platform != 'vita' or args.version != TARGET
+    if not unity and (args.development or args.import_jobs):
+        parser.error('--development and --import-jobs are for the editor build: add --unity')
     project = WORK / (f'drifter-{args.version}' + ('-vita' if args.platform == 'vita' else ''))
-    output = build_dir(args.version, args.backend, args.platform, args.diag)
+    output = build_dir(args.version, args.backend, args.platform, args.diag, unity)
     if args.platform == 'windows':
         output = output / 'TheDrifter.exe'
     # `all` reuses an export of the same game files with the same AssetRipper and settings
@@ -817,9 +824,7 @@ def main():
             f'{project} was assembled with diag={marker.read_text(encoding="utf-8")}; run the project stage '
             f'again or build with the same --diag'
         )
-    if args.stage in ('build', 'all') and args.pure:
-        if args.platform != 'vita' or args.version != TARGET:
-            parser.error(f'--pure builds the PS Vita player for Unity {TARGET} only')
+    if args.stage in ('build', 'all') and not unity:
         sys.path.insert(0, str(HERE.parent / 'pure'))
         import make
 
@@ -837,7 +842,7 @@ def main():
             args.import_jobs,
         )
     if args.stage in ('package', 'deploy'):
-        vpk = package_vita(build_dir(args.version, 'il2cpp', 'vita', args.diag))
+        vpk = package_vita(build_dir(args.version, 'il2cpp', 'vita', args.diag, unity))
         if args.stage == 'deploy':
             deploy_vita(vpk)
 
