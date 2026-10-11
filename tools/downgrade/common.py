@@ -105,8 +105,17 @@ def run(command):
     subprocess.run([str(c) for c in command], check=True)
 
 
+def unity_files(version):
+    """Where setup.py extracts, without installing anything, the parts of Unity's editor and PS Vita
+    module installers the pipeline and the editor-free build read (laid out as the editor's folder)."""
+    return EXTERNAL / f'unity-{version}'
+
+
 def editor_data(version):
-    return EDITORS / version / 'Editor' / 'Data'
+    """Unity's Editor/Data folder: the files setup.py extracted from Unity's installers, or else an
+    installed editor's (the same files)."""
+    extracted = unity_files(version) / 'Editor' / 'Data'
+    return extracted if extracted.exists() else EDITORS / version / 'Editor' / 'Data'
 
 
 def download(url, destination: Path, digest: str | None):

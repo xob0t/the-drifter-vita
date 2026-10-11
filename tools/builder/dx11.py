@@ -31,9 +31,9 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
-from paths import CGINCLUDES, EDITOR_DATA, PROJECT
+from paths import CGINCLUDES, INSTALLED_EDITOR_DATA, PROJECT
 
-D3DCOMPILER = EDITOR_DATA / 'Tools' / 'D3Dcompiler_47.dll'
+D3DCOMPILER = INSTALLED_EDITOR_DATA / 'Tools' / 'D3Dcompiler_47.dll'
 
 PLATFORM_D3D11 = 4  # the Shader object's platforms entry
 GPU_TYPES = {('vp', 4): 15, ('fp', 4): 17, ('vp', 5): 16, ('fp', 5): 18}  # DX11VertexSM40 ... DX11PixelSM50

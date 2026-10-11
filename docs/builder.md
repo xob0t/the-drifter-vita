@@ -2,7 +2,7 @@
 
 The builder (`tools/builder`) builds the PS Vita app from the translated project without running the Unity editor. This is the pipeline's default way to build the Vita app. It needs no Unity license and imports no assets, and a rebuild takes about 5 minutes.
 
-It does what Unity's import and build would do for this project. It still uses some files from the Unity installation, but only as data and tools: about 100 MB of CGIncludes, the PS Vita player module, and IL2CPP with its PS Vita plugin. It also uses the PS Vita SDK's compiler and linker (psp2cgc, psp2snc, psp2ld). The pipeline's `rip` and `project` stages are the same either way; only `build` differs.
+It does what Unity's import and build would do for this project. It still uses some of Unity's files, but only as data and tools: CGIncludes, the engine and class libraries, IL2CPP, the built-in resources, and the PS Vita player module with its IL2CPP plugin. `setup.py --vita` extracts them from Unity's editor and PS Vita module installers into `tools/external/unity-2018.2.19f1` without installing or running anything; an installed editor works too. It also uses the PS Vita SDK's compiler and linker (psp2cgc, psp2snc, psp2ld). The pipeline's `rip` and `project` stages are the same either way; only `build` differs.
 
 ## Usage
 

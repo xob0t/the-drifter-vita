@@ -44,10 +44,10 @@ NAME = 'TheDrifter'
 PROJECT = paths.common.WORK / f'drifter-{paths.TARGET}'
 REFERENCE = paths.ROOT / 'builds' / f'drifter-{paths.TARGET}'
 OUT = paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-builder'
-VARIATION = paths.EDITOR_DATA / 'PlaybackEngines' / 'windowsstandalonesupport' / 'Variations'
+VARIATION = paths.INSTALLED_EDITOR_DATA / 'PlaybackEngines' / 'windowsstandalonesupport' / 'Variations'
 VARIATION = VARIATION / 'win64_nondevelopment_mono'
-CLASS_LIBRARIES = paths.EDITOR_DATA / 'MonoBleedingEdge' / 'lib' / 'mono' / '4.5'
-EXTENSIONS = paths.EDITOR_DATA / 'UnityExtensions' / 'Unity'
+CLASS_LIBRARIES = paths.INSTALLED_EDITOR_DATA / 'MonoBleedingEdge' / 'lib' / 'mono' / '4.5'
+EXTENSIONS = paths.INSTALLED_EDITOR_DATA / 'UnityExtensions' / 'Unity'
 # Runtime DLLs of the extensions whose plugin settings include Standalone. The others hold
 # editor code only, or target Android (GoogleAudioSpatializer) or UWP (HoloLens).
 EXTENSION_DLLS = (

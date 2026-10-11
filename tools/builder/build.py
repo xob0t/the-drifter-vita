@@ -40,7 +40,7 @@ from placement import AssetContext, Placement, first_path_id
 from writer import SerializedWriter, TypeHashes
 
 DEFAULT_RESOURCES = '0000000000000000e000000000000000'
-WINDOWS_PLAYER = paths.EDITOR_DATA / 'PlaybackEngines' / 'windowsstandalonesupport' / 'Variations'
+WINDOWS_PLAYER = paths.INSTALLED_EDITOR_DATA / 'PlaybackEngines' / 'windowsstandalonesupport' / 'Variations'
 WINDOWS_PLAYER = WINDOWS_PLAYER / 'win64_nondevelopment_mono'
 
 

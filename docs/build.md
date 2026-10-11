@@ -38,11 +38,11 @@ Then build: [Windows](#2-build-a-windows-player) or [PS Vita](#3-build-the-ps-vi
 The setup script installs what is missing and skips what is already there, so you can run it again at any time. It:
 
 - runs `uv sync` for the Python packages;
-- installs the Unity 2018.2.19f1 editor from Unity's CDN into `%LOCALAPPDATA%\Unity\Editors\2018.2.19f1`, and with `--vita` the editor's PS Vita module;
+- installs the Unity 2018.2.19f1 editor from Unity's CDN into `%LOCALAPPDATA%\Unity\Editors\2018.2.19f1` (and with `--vita --unity` its PS Vita module). With `--vita` alone it installs no Unity: it downloads the editor and PS Vita module installers and extracts the files the pipeline and the PS Vita build read, about 1.2 GB, into `tools\external\unity-2018.2.19f1`, using 7-Zip (an installed one, or 7-Zip's package from GitHub, pinned by hash);
 - downloads AssetRipper 2.0.0 into `tools/external/assetripper-2.0.0`, and Mono.Cecil from NuGet;
 - finds the game in your Steam libraries, and offers to set `DRIFTER_GAME` if it is not in Steam's default folder;
 - with `--vita`, installs Sony's PS Vita SDK (downloaded from archive.org, or your copy with `--vita-sdk`), checks it and sets `SCE_PSP2_SDK_DIR` for your user; with `--vita --unity`, also its Target Manager Server and Publishing Tools, which only the editor's build needs, and sets `SCE_ROOT_DIR`;
-- starts the editor once in batch mode to check that it runs (see [The Unity license](#the-unity-license));
+- when it installed the editor, starts it once in batch mode to check that it runs (see [The Unity license](#the-unity-license));
 - ends with the doctor's checklist (see [Checking the setup](#checking-the-setup)).
 
 It checks every download against a pinned hash (SHA-256, or SHA-1 for the SDK's files, the only hash archive.org lists for them), and it runs a Unity installer only if the installer's Authenticode signature is Unity Technologies'. Installers that need administrator rights ask for them.
@@ -50,7 +50,7 @@ It checks every download against a pinned hash (SHA-256, or SHA-1 for the SDK's 
 | Option | Effect |
 | --- | --- |
 | `--il2cpp` | Also install the editor's Windows IL2CPP module. An IL2CPP player also needs Visual Studio 2022 Build Tools with "Desktop development with C++"; the doctor prints the command. |
-| `--vita` | Also install the editor's PS Vita module and the SDK: an SDK already on the machine, or else SDK 3.570 downloaded from archive.org. |
+| `--vita` | The PS Vita build: Unity's files extracted from its installers (no editor), and the SDK: one already on the machine, or else SDK 3.570 downloaded from archive.org. With `--unity`, the editor and its PS Vita module instead, for `pipeline.py --unity`. |
 | `--vita-sdk <path>` | Your own PS Vita SDK instead of the download, as an archive (`.zip`, `.7z`, ...) or a folder. Implies `--vita`. |
 | `--vita-sdk-dir <dir>` | Where to extract the archive (default `C:\vitasdk`) or copy the folder. Without it, the script uses a folder in place. |
 | `--vita-host <address>` | Set `DRIFTER_VITA_HOST`, the console's address, for `deploy` and `vita.py`. |
