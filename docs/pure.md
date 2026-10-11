@@ -1,49 +1,92 @@
-# Building without Unity
+# Building without the Unity editor
 
-`tools/pure` builds the PS Vita player from the translated project without running the Unity editor. It does what Unity's import and build do for this project, using files from Unity's installation as data and tools (CGIncludes, the PS Vita player module, IL2CPP and its PS Vita plugin, about 100 MB in all) and Sony's SDK (psp2cgc, psp2snc, psp2ld). The pipeline's `rip` and `project` stages stay as they are; this replaces `build`.
+`tools/pure` builds the PS Vita app from the translated project without running the Unity editor. That means no Unity license and no asset import: a build takes about 5 minutes.
+
+It does what Unity's import and build would do for this project. It still uses some files from the Unity installation, but only as data and tools: about 100 MB of CGIncludes, the PS Vita player module, and IL2CPP with its PS Vita plugin. It also uses the PS Vita SDK's compiler and linker (psp2cgc, psp2snc, psp2ld). The pipeline's `rip` and `project` stages are unchanged; this only replaces `build`.
+
+## Usage
 
 ```powershell
-uv run tools/pure/make.py           # builds/drifter-2018.2.19f1-vita-pure, about 5 minutes warm
-uv run tools/pure/make.py --vpk     # and the VPK beside it
-uv run tools/downgrade/pipeline.py build --platform vita --pure   # the same, into the pipeline's build folder
-uv run tools/pure/build.py --platform windows   # Windows data from the PC-variant project, for play-testing
+uv run tools/downgrade/pipeline.py build --platform vita --pure   # into the pipeline's usual build folder
+uv run tools/pure/make.py                                         # into builds/drifter-2018.2.19f1-vita-pure
+uv run tools/pure/make.py --vpk                                   # the same, plus a VPK
+```
+
+`--pure` works only for the PS Vita and Unity 2018.2.19f1.
+
+There is also a Windows build, used for play-testing against the original game with the parity tools ([parity.md](parity.md)):
+
+```powershell
+uv run tools/pure/build.py --platform windows   # the data, from the PC-variant project
 uv run tools/pure/windows.py --own-data         # a Windows player around it
 ```
 
-It has not run on a console yet. Every piece is checked against the player Unity built from the same project (`builds/drifter-2018.2.19f1-vita-diag`, since the project is in diag mode), object by object and where possible byte by byte (so `pipeline.py build --pure --diag`, which writes into that folder, replaces the reference the checks read); the Windows build is play-tested against the original game with the parity tools ([parity.md](parity.md)).
+## Status
+
+It runs on the console. In a sweep of 40 of the game's 61 rooms on a PS Vita, every room loaded without a crash. Frame rates and logged errors matched the player Unity built, and the screenshots matched apart from timing.
+
+Every part of the output is checked against the player Unity builds from the same project: object by object, and byte by byte where possible. That reference is `builds/drifter-2018.2.19f1-vita-diag` (the project is assembled in diag mode, so Unity's build lands in the `-diag` folder). `pipeline.py build --pure --diag` writes into that same folder, which replaces the reference.
+
+## Differences from Unity's build
+
+Everything else is identical. These are the known differences:
+
+- **Levels.** Byte-identical, apart from the component the editor adds while loading each scene (see [Edit-mode scripts](#rules-found)).
+- **Assets.** Sprites, prefabs, materials, animation clips and controllers, the mixer, MonoBehaviours, textures, fonts, text assets, PreloadData and MonoScripts are identical, with two exceptions:
+  - The editor adds the keyword `ETC1_EXTERNAL_ALPHA` to two materials (`PropLightMasked` and `WaterSprite`) for no reason we found. The PS Vita build has no ETC1 shader variants, so the keyword has no effect.
+  - The six imported sprites (the PS Vita button glyphs) get a fallback physics shape with Unity's bounds, but not Unity's exact outline. The game only reads the bounds: `GuiUtils` uses them to size small GUI sprites.
+- **Shaders.** Every program and binding is identical. Two things differ:
+  - The low bits of the pass IDs, which come from a hash we don't know. The IDs still group the 157 passes exactly as Unity's do: two passes share an ID in our build only when they share one in Unity's.
+  - The LZ4 compressor's output.
+- **Audio.** Every AudioClip field, FSB5 header and stream offset is identical. The HEVAG samples come from our own encoder, because Sony's is not public. Measured against the source audio, ours scores a median 39.5 dB SNR and Unity's 35.1 dB.
+- **DXT textures.** These are compressed with quicktex, which comes out slightly closer to the source than Unity's encoder.
+- **Code.** `global-metadata.dat` and `resources.dat` are identical. The code module has the same sections, imports, exports and app info, but is linked in a different order. Two of Unity's own builds differ in the same way.
+- **globalgamemanagers.** Three things differ:
+  - The per-build GUIDs.
+  - Three lists that Unity sorts by a hash.
+  - The order of the `[RuntimeInitializeOnLoadMethod]` methods, which is the order they run in. The editor collects them in native code; ours run in type definition order. That moves `MainThread.Record` and `SceneUnloads.Register` ahead of `ParticleCameras`, `LoopSteps` and `ParticleRate`. None of them depends on another: `MainThread` sets its flag on first use if `Record` has not run yet, and `SceneUnloads` is the only one that handles `sceneUnloaded` at startup (`ParticleRate` adds its handler on the first `sceneLoaded`).
 
 ## How it works
 
-- `unityyaml.py` reads Unity's YAML; every scalar stays a string until a type tree says what it is.
-- `convert.py` fills each class's release type tree (UnityPy's TPK for 2018.2.19f1) from the editor YAML by field name. `classes.py` holds what the editor build changes on top: no-lightmap values on renderers, tag numbers, a sprite renderer's sprite flag, the render data key of sprites, particle start delays without curves.
-- `scripts.py` and `typemodel/` model the fields of script classes (Mono.Cecil over the game's DLLs) for MonoBehaviour type trees; `typehash.py` computes the type table's ScriptID and OldTypeHash.
-- `assets.py` indexes the project's assets; `layout.py` decides which file each object goes to and in what order; `placement.py` gives every object its file and path ID, which resolves references across files.
-- Class builders: `animation.py` (clips, controllers), `mixer.py` (the audio mixer's baked constant), `textures.py`, `fonts.py` and `imported.py` (textures and their `.resS` streams, fonts, text assets), `audio.py` with `fsb5.py` and `hevag.py` (AudioClips and their HEVAG FSB5 `.resource` streams), `shader_object.py` with `shaderlab.py`, `psp2cgc.py`, `shader_bindings.py` and `shader_blob.py` (Shader objects), `builtin_copies.py` and `builtin_extra.py` (built-in resources), `managers.py` and `preload.py` (globalgamemanagers, MonoScripts, PreloadData).
-- `writer.py` serializes objects and writes the serialized files; `build.py` writes all the data; `package.py` lays out the build folder (player, system modules, `param.sfo`); `il2cpp.py` builds the game code module with Unity's IL2CPP; `make.py` runs them all.
-- Windows: `dx11.py`, `windows_shaders.py`, `windows_builtin_extra.py`, `windows_audio.py` (PCM FSB5), `windows_managers.py`, `windows_build.py` and `windows.py`.
+The build reads the project's YAML, turns each object into the form the player loads, decides which file it goes in, and writes the files.
 
-## How close it is
-
-- Levels: byte-identical, except the component the editor adds while loading each scene (below).
-- Every YAML asset (sprites, prefabs, materials, clips, controllers, the mixer, MonoBehaviours), every texture's fields and uncompressed pixels, fonts, text assets, PreloadData, MonoScripts: identical to the reference, with two exceptions. The editor adds `ETC1_EXTERNAL_ALPHA` to two materials (`PropLightMasked`, `WaterSprite`) while building, for no reason found; the PS Vita has no ETC1 variants, so it selects nothing. The six imported sprites (the PS Vita glyphs) get a fallback physics shape with Unity's bounds but not its vertices; the game reads only the bounds (`GuiUtils` sizes small GUI sprites by them).
-- Shaders: every program, binding and parsed form identical; the pass ids' low bits (an unknown hash) and the LZ4 encoder differ. The ids still group the 157 passes exactly as Unity's do: two passes share an id in our build only where they share one in Unity's.
-- Audio: every AudioClip field, FSB5 header and stream offset identical; the HEVAG samples come from our encoder (Sony's is closed), at a median 39.5 dB SNR against the source (Unity's: 35.1 dB).
-- DXT textures come from quicktex, slightly closer to the source than Unity's encoder.
-- Code: global-metadata.dat and resources.dat identical; the module has the same sections, imports, exports and app info, linked in another order (Unity's own builds differ the same way).
-- globalgamemanagers: per-build GUIDs, three lists in Unity's hash order, and the order of `[RuntimeInitializeOnLoadMethod]` methods (which is the order they run) differ. The editor collects those in native code; ours run in type definition order, which moves `MainThread.Record` and `SceneUnloads.Register` ahead of `ParticleCameras`, `LoopSteps` and `ParticleRate`. Neither depends on the others: `MainThread` sets its flag on first use if `Record` has not run, and `SceneUnloads` is the only one of them that handles `sceneUnloaded` at startup (`ParticleRate` adds its handler on the first `sceneLoaded`).
+| Step | Modules |
+| --- | --- |
+| Read Unity's YAML (every value stays a string until a type tree says what it is) | `unityyaml.py` |
+| Fill each class's release type tree from the editor YAML, by field name. The type trees for 2018.2.19f1 come from UnityPy's TPK. | `convert.py` |
+| Apply what the editor build changes on top of the YAML: no-lightmap values on renderers, tag numbers, a sprite renderer's sprite flag, sprites' render data keys, particle start delays without curves | `classes.py` |
+| Model the fields of the game's script classes (via Mono.Cecil) for MonoBehaviour type trees | `scripts.py`, `typemodel/` |
+| Compute the type table's ScriptID and OldTypeHash | `typehash.py` |
+| Index the project's assets, decide which file each object goes in and in what order, and give each object its file and path ID (which resolves references between files) | `assets.py`, `layout.py`, `placement.py` |
+| Build the objects of each kind: animation, the audio mixer, textures, fonts and text assets, audio clips with their HEVAG streams, shaders, built-in resources, and the managers (globalgamemanagers, MonoScripts, PreloadData) | `animation.py`, `mixer.py`, `textures.py`, `fonts.py`, `imported.py`, `audio.py`, `fsb5.py`, `hevag.py`, `shader_object.py`, `shaderlab.py`, `psp2cgc.py`, `shader_bindings.py`, `shader_blob.py`, `builtin_copies.py`, `builtin_extra.py`, `managers.py`, `preload.py` |
+| Serialize the objects and write all the data files | `writer.py`, `build.py` |
+| Lay out the build folder (player, system modules, `param.sfo`) | `package.py` |
+| Build the game code module with Unity's IL2CPP | `il2cpp.py` |
+| Run all of the above | `make.py` |
+| The Windows build | `dx11.py`, `windows_shaders.py`, `windows_builtin_extra.py`, `windows_audio.py` (PCM FSB5), `windows_managers.py`, `windows_build.py`, `windows.py` |
 
 ## Rules found
 
-- **Files.** An asset under a `Resources` folder goes to `resources.assets`, an always-included shader to `globalgamemanagers.assets`, anything else to `sharedassetsN.assets` for the first scene (build order) that reaches it. Unreferenced importer sub-objects (a texture's sprite) are left out.
-- **Order.** PreloadData, then assets by class ID, then GameObjects and components by class ID, MonoBehaviours last. Within a class, YAML objects come first (assets before prefabs, each by fileID, then path), then imported files' objects by GUID. A level's objects are its scene's in class order, MonoBehaviours last, by fileID.
-- **Built-in resources.** Built-in materials and shaders the content uses are copied into the first file that uses them; the ones GraphicsSettings names for the engine stay in `unity_builtin_extra`.
-- **Script references.** A script's fileID is MD4 of `"s\0\0\0" + namespace + name`, which can collide (`PowerTools.Quest.GuiInventoryPanel` and `PowerTools.QuestGui.InventoryPanel`); the object's fields decide.
-- **Type hashes.** OldTypeHash is MD4 over the type tree (type, name, size, is-array, version, align flag); scripts hash their editor tree. ScriptID is MD4 of class name + namespace + assembly.
-- **Shaders.** psp2cgc gets Unity's preamble, `-nofastint` and the target's defines; the binding data comes from the GXP's parameter table and the compiler's SDB. Always-included shaders keep every `shader_feature` combination, others the materials'; ETC1, instancing, stereo and unused fog variants are stripped, and variants that fail to compile are dropped. The GXP's source GUID is a hash of the input file's path.
-- **Textures.** The PS Vita compresses only power-of-two sizes; others fall back to RGBA32 or RGB24. A fully transparent texel takes the colour of the nearest visible one (Manhattan distance, lower row, then leftmost).
-- **Edit-mode scripts.** The editor loads each scene to build it, so `[ExecuteInEditMode]` scripts run first: CRTEffect adds a `CrtImageEffect`, layout scripts move objects. The game does the same at runtime, so the builder leaves the scenes as written.
+How Unity's build arranges things, worked out by comparing against its output:
+
+- **Which file.** An asset under a `Resources` folder goes in `resources.assets`, and an always-included shader in `globalgamemanagers.assets`. Anything else goes in the `sharedassetsN.assets` of the first scene, in build order, that uses it. Importer sub-objects that nothing references (such as a texture's sprite) are left out.
+- **Order in a file.** PreloadData comes first, then assets by class ID, then GameObjects and components by class ID, then MonoBehaviours.
+  - Within a class, objects from YAML come first: assets before prefabs, each sorted by fileID and then path. Objects from imported files follow, sorted by GUID.
+  - A level holds its scene's objects in class order, MonoBehaviours last, each class sorted by fileID.
+- **Built-in resources.** Built-in materials and shaders that the game's content uses are copied into the first file that uses them. The ones GraphicsSettings names for the engine stay in `unity_builtin_extra`.
+- **Script references.** A script's fileID is the MD4 of `"s\0\0\0" + namespace + name`. That can collide: `PowerTools.Quest.GuiInventoryPanel` and `PowerTools.QuestGui.InventoryPanel` have the same one. When that happens, the object's fields decide which script it is.
+- **Type hashes.** OldTypeHash is MD4 over the type tree (type, name, size, is-array flag, version, align flag); scripts hash their editor type tree. ScriptID is MD4 of the class name, namespace and assembly.
+- **Shaders.**
+  - psp2cgc gets Unity's preamble, `-nofastint` and the target's defines. The binding data comes from the GXP's parameter table and the compiler's SDB.
+  - Always-included shaders keep every `shader_feature` combination; other shaders keep only the combinations their materials use.
+  - ETC1, instancing, stereo and unused fog variants are stripped, and variants that fail to compile are dropped.
+  - The GXP's source GUID is a hash of the input file's path.
+- **Textures.** The PS Vita only compresses textures with power-of-two sizes; others fall back to RGBA32 or RGB24. A fully transparent texel takes the colour of the nearest visible one, by Manhattan distance; ties go to the lower row, then the leftmost.
+- **Edit-mode scripts.** The editor loads each scene in order to build it, so `[ExecuteInEditMode]` scripts run first: CRTEffect adds a `CrtImageEffect`, and layout scripts move objects. The game does the same at runtime, so the builder leaves the scenes as written.
 
 ## Checks
+
+Each check compares one part of the output with Unity's build:
 
 ```powershell
 uv run tools/pure/check_shaders.py          # every shader program and its bindings
@@ -54,8 +97,8 @@ uv run tools/pure/check_layout.py           # which objects each file holds, in 
 uv run tools/pure/check_assets.py           # asset objects
 uv run tools/pure/check_animation.py        # clips and controllers
 uv run tools/pure/check_imported.py         # textures, fonts, text assets
-uv run --with soundfile tools/pure/check_audio.py   # audio clips and streams
+uv run tools/pure/check_audio.py            # audio clips and streams
 uv run tools/pure/check_managers.py         # globalgamemanagers, MonoScripts, PreloadData
-uv run tools/pure/build.py --compare        # written files, byte for byte
+uv run tools/pure/build.py --compare        # the written files, byte for byte
 uv run tools/pure/il2cpp.py --compare       # the code module
 ```

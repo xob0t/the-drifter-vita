@@ -63,6 +63,8 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
 
 The first build takes about 41 minutes with Node.js, or 100 without. Nearly all of that is Unity importing the game's audio. After that, a run only reimports what changed, about 10 minutes for a rebuild.
 
+No Unity license? Add `--pure` to the build: `uv run tools/downgrade/pipeline.py all --platform vita --pure` builds the Vita app without running the Unity editor (it still needs the editor installed, for its files). Because nothing is imported, the build step takes about 5 minutes. It is newer and less tested than the editor build; see [docs/pure.md](docs/pure.md).
+
 Install the VPK with VitaShell. For later builds you don't have to reinstall: start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
 
 You don't need a Windows player for any of this. It's for testing: `uv run tools/downgrade/pipeline.py all` builds one into `builds/drifter-2018.2.19f1/`.
@@ -79,6 +81,7 @@ You don't need a Windows player for any of this. It's for testing: `uv run tools
 | [docs/parity.md](docs/parity.md)     | The test probe and tools, and how to check a change                             |
 | [docs/switches.md](docs/switches.md) | Every `-compat-*` switch with its default on Windows and on the Vita            |
 | [docs/vitalike.md](docs/vitalike.md) | Measuring CPU costs on a PC slowed to the Vita's speed                          |
+| [docs/pure.md](docs/pure.md)         | The Vita build without the Unity editor, and how it compares with Unity's       |
 
 ## License
 
