@@ -31,16 +31,14 @@ Every part of the output is checked against the player Unity builds from the sam
 
 Everything else is identical. These are the known differences:
 
-- **Levels.** Byte-identical, apart from the component the editor adds while loading each scene (see [Edit-mode scripts](#rules-found)).
-- **Assets.** Sprites, prefabs, materials, animation clips and controllers, the mixer, MonoBehaviours, textures, fonts, text assets, PreloadData and MonoScripts are identical, with two exceptions:
-  - The editor adds the keyword `ETC1_EXTERNAL_ALPHA` to two materials (`PropLightMasked` and `WaterSprite`) for no reason we found. The PS Vita build has no ETC1 shader variants, so the keyword has no effect.
-  - The six imported sprites (the PS Vita button glyphs) get a fallback physics shape with Unity's bounds, but not Unity's exact outline. The game only reads the bounds: `GuiUtils` uses them to size small GUI sprites.
+- **Levels.** Identical, apart from what edit-mode scripts do while the editor loads each scene: the component CRTEffect adds, and two objects that layout scripts move (see [Edit-mode scripts](#rules-found)).
+- **Assets.** Sprites, prefabs, materials, animation clips and controllers, the mixer, MonoBehaviours, textures, fonts, text assets, PreloadData and MonoScripts are identical, with one exception: the six imported sprites (the PS Vita button glyphs) get a fallback physics shape with Unity's bounds, but not Unity's exact outline. The game only reads the bounds: `GuiUtils` uses them to size small GUI sprites.
 - **Shaders.** Every program and binding is identical. Two things differ:
   - The low bits of the pass IDs, which come from a hash we don't know. The IDs still group the 157 passes exactly as Unity's do: two passes share an ID in our build only when they share one in Unity's.
   - The LZ4 compressor's output.
 - **Audio.** Every AudioClip field, FSB5 header and stream offset is identical. The HEVAG samples come from our own encoder, because Sony's is not public. Measured against the source audio, ours scores a median 39.5 dB SNR and Unity's 35.1 dB.
 - **DXT textures.** These are compressed with quicktex, which comes out slightly closer to the source than Unity's encoder.
-- **Code.** `global-metadata.dat` and `resources.dat` are identical. The code module has the same sections, imports, exports and app info, but is linked in a different order. Two of Unity's own builds differ in the same way.
+- **Code.** `global-metadata.dat` and `resources.dat` are identical when both builds compile the same DLLs. Each compile of `DrifterCompat.dll` and `DrifterDiag.dll` names their `<PrivateImplementationDetails>` class with a new GUID, which `global-metadata.dat` lists. The code module has the same sections, imports, exports and app info, but is linked in a different order. Two of Unity's own builds differ in the same way.
 - **globalgamemanagers.** Three things differ:
   - The per-build GUIDs.
   - Three lists that Unity sorts by a hash.
@@ -54,11 +52,11 @@ The build reads the project's YAML, turns each object into the form the player l
 | --- | --- |
 | Read Unity's YAML (every value stays a string until a type tree says what it is) | `unityyaml.py` |
 | Fill each class's release type tree from the editor YAML, by field name. The type trees for 2018.2.19f1 come from UnityPy's TPK. | `convert.py` |
-| Apply what the editor build changes on top of the YAML: no-lightmap values on renderers, tag numbers, a sprite renderer's sprite flag, sprites' render data keys, particle start delays without curves | `classes.py` |
+| Apply what the editor build changes on top of the YAML: no-lightmap values on renderers, tag numbers, a sprite renderer's sprite flag, sprites' render data keys, particle start delays without curves, 2D colliders' sprite tiling | `classes.py`, `sprite_tiling.py` |
 | Model the fields of the game's script classes (via Mono.Cecil) for MonoBehaviour type trees | `scripts.py`, `typemodel/` |
 | Compute the type table's ScriptID and OldTypeHash | `typehash.py` |
 | Index the project's assets, decide which file each object goes in and in what order, and give each object its file and path ID (which resolves references between files) | `assets.py`, `layout.py`, `placement.py` |
-| Build the objects of each kind: animation, the audio mixer, textures, fonts and text assets, audio clips with their HEVAG streams, shaders, built-in resources, and the managers (globalgamemanagers, MonoScripts, PreloadData) | `animation.py`, `mixer.py`, `textures.py`, `fonts.py`, `imported.py`, `audio.py`, `fsb5.py`, `hevag.py`, `shader_object.py`, `shaderlab.py`, `psp2cgc.py`, `shader_bindings.py`, `shader_blob.py`, `builtin_copies.py`, `builtin_extra.py`, `managers.py`, `preload.py` |
+| Build the objects of each kind: animation, the audio mixer, textures, fonts and text assets, audio clips with their HEVAG streams, shaders, built-in resources, and the managers (globalgamemanagers, MonoScripts, PreloadData) | `animation.py`, `mixer.py`, `textures.py`, `fonts.py`, `imported.py`, `audio.py`, `fsb5.py`, `hevag.py`, `shader_object.py`, `shaderlab.py`, `psp2cgc.py`, `shader_bindings.py`, `shader_blob.py`, `builtin_copies.py`, `builtin_extra.py`, `managers.py`, `editor_settings.py`, `preload.py` |
 | Serialize the objects and write all the data files | `writer.py`, `build.py` |
 | Lay out the build folder (player, system modules, `param.sfo`) | `package.py` |
 | Build the game code module with Unity's IL2CPP | `il2cpp.py` |
@@ -74,6 +72,9 @@ How Unity's build arranges things, worked out by comparing against its output:
   - Within a class, objects from YAML come first: assets before prefabs, each sorted by fileID and then path. Objects from imported files follow, sorted by GUID.
   - A level holds its scene's objects in class order, MonoBehaviours last, each class sorted by fileID.
 - **Built-in resources.** Built-in materials and shaders that the game's content uses are copied into the first file that uses them. The ones GraphicsSettings names for the engine stay in `unity_builtin_extra`.
+- **Project settings.** The project's settings are the export of a Unity 2020 project. When Unity 2018.2 first opens it, the editor adds the PlayerSettings fields of its own version with their defaults, and drops `Hidden/VideoDecodeOSX` from GraphicsSettings' Always Included Shaders (the cause is not known). The builder does the same (`editor_settings.py`, `managers.py`), and applies what the pipeline's build script (`DowngradeBuild.cs`) sets for the PS Vita: the content ID, the short title and the +109 MB memory mode. So it needs nothing the editor writes into the project.
+- **Sprite materials.** The editor adds the keyword `ETC1_EXTERNAL_ALPHA` to every material that a SpriteRenderer or SpriteMask with a sprite uses, in a build scene or a prefab. This includes the built-in `Sprites-Default` and `Sprites-Mask`. The shader doesn't need to declare the keyword. Materials used only by renderers without a sprite don't get it. The PS Vita build has no ETC1 shader variants, so the keyword has no effect.
+- **2D collider sprite tiling.** The editor recomputes the `m_SpriteTilingProperty` of a PolygonCollider2D or BoxCollider2D from the SpriteRenderer on the same GameObject, in scenes and prefabs alike: pivot and border come from the sprite, `oldSize` is the sprite's rect divided by its pixels per unit, and the rest comes from the renderer. A collider without a renderer, or whose renderer has no sprite, keeps the saved values (`sprite_tiling.py`).
 - **Script references.** A script's fileID is the MD4 of `"s\0\0\0" + namespace + name`. That can collide: `PowerTools.Quest.GuiInventoryPanel` and `PowerTools.QuestGui.InventoryPanel` have the same one. When that happens, the object's fields decide which script it is.
 - **Type hashes.** OldTypeHash is MD4 over the type tree (type, name, size, is-array flag, version, align flag); scripts hash their editor type tree. ScriptID is MD4 of the class name, namespace and assembly.
 - **Shaders.**

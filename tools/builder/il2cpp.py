@@ -50,6 +50,7 @@ from functools import cache, cached_property
 from pathlib import Path
 
 import dnfile
+import editor_settings
 import paths
 import unityyaml
 
@@ -411,7 +412,7 @@ def hex_bytes(text, count, what):
 
 def application_info(project, file_count):
     """ApplicationInfo.cpp as Unity writes it from the PS Vita player settings."""
-    s = unityyaml.meta(project / 'ProjectSettings' / 'ProjectSettings.asset')['PlayerSettings']
+    s = editor_settings.player_settings(project)
     content_id = str(s.get('psp2ContentID') or '')
     title_id = content_id[7:16] if len(content_id) >= 16 else DEFAULT_TITLE_ID
     service_id = content_id[:19] if len(content_id) >= 19 else f'IV0000-{title_id}_00'
@@ -560,7 +561,14 @@ def build(out=paths.OUT, project=paths.PROJECT, count=None, force=False, work=BU
         snc += ['-Xblxcall=1', '-c', 'ApplicationInfo.cpp', '-o', 'ApplicationInfo.o']
         times['appinfo'] = run(snc, work / 'appinfo.log', cwd=work)
 
-        command = il2cpp_command(inputs, roots, managed, module, generated, work / 'ApplicationInfo.o', work / 'cache')
+        # psp2snc names file-local symbols by a hash of the source file's path, so objects compiled in
+        # another folder do not link with new ones: the object cache starts over when the folder moves.
+        cache, folder = work / 'cache', work / 'cache' / 'folder.txt'
+        if cache.exists() and not (folder.exists() and folder.read_text(encoding='utf-8') == str(work.resolve())):
+            shutil.rmtree(cache)
+        cache.mkdir(parents=True, exist_ok=True)
+        folder.write_text(str(work.resolve()), encoding='utf-8')
+        command = il2cpp_command(inputs, roots, managed, module, generated, work / 'ApplicationInfo.o', cache)
         times['il2cpp'] = run(command, work / 'il2cpp.log', cwd=work)  # psp2ld writes its stub archive here
         stamp_file.write_text(stamp)
 

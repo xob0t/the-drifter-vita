@@ -14,6 +14,7 @@ then the objects of imported files (textures, audio, fonts, ...) by GUID.
 import re
 from functools import cache
 
+import editor_settings
 import unityyaml
 from assets import GUID, REF, AssetDB
 from paths import EDITOR_DATA, PROJECT
@@ -37,7 +38,7 @@ def build_scenes(project=PROJECT):
 
 
 def always_included_shaders(project=PROJECT):
-    text = (project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
+    text = editor_settings.graphics_settings_text(project)
     block = text.split('m_AlwaysIncludedShaders:')[1].split('m_PreloadedShaders')[0]
     return set(GUID.findall(block))
 
@@ -94,7 +95,7 @@ class Layout:
         """Built-in extra resources the game's content uses are copied into the first file that uses
         them; the ones GraphicsSettings names for the engine stay in unity_builtin_extra, except the
         default sprite material, which goes to globalgamemanagers.assets with its shader."""
-        graphics = (project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
+        graphics = editor_settings.graphics_settings_text(project)
         sprites_default = re.search(r'm_SpritesDefaultMaterial: \{fileID: (\d+)', graphics)
         engine = {int(fid) for fid, g in REF.findall(graphics) if g == BUILTIN_EXTRA}
         table = builtin_extra()

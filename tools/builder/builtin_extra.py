@@ -28,6 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 
 import convert
+import editor_settings
 import lz4.block
 import psp2cgc
 import shader_object as so
@@ -68,13 +69,13 @@ BUILTIN_SOURCE_DIR = so.BUILTIN_SOURCE / 'DefaultResourcesExtra'
 
 def graphics_refs(project=PROJECT):
     """(fileID, guid) of every reference in GraphicsSettings, in file order."""
-    text = (project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
+    text = editor_settings.graphics_settings_text(project)
     return [(int(fid), g) for fid, g in re.findall(r'fileID: (-?\d+), guid: ([0-9a-f]{32})', text)]
 
 
 def always_included_project(project=PROJECT):
     """GUIDs of the project's Always Included shaders, in list order."""
-    text = (project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
+    text = editor_settings.graphics_settings_text(project)
     block = text.split('m_AlwaysIncludedShaders:')[1].split('m_PreloadedShaders')[0]
     refs = re.findall(r'fileID: (-?\d+), guid: ([0-9a-f]{32})', block)
     return [g for fid, g in refs if g != BUILTIN_EXTRA and int(fid) == PROJECT_SHADER]
@@ -112,7 +113,7 @@ def lighting_assets(layout, project=PROJECT):
 def lightmap_keywords_kept(layout, project=PROJECT):
     """Lightmap keywords whose variants the build keeps: those the scenes' lighting needs
     (automatic stripping) or the ones GraphicsSettings keeps (custom)."""
-    graphics = unityyaml.meta(project / 'ProjectSettings' / 'GraphicsSettings.asset')['GraphicsSettings']
+    graphics = editor_settings.graphics_settings(project)
     if graphics.get('m_LightmapStripping', '0') != '0':
         flags = {
             'm_LightmapKeepPlain': {'LIGHTMAP_ON'},

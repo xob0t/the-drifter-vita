@@ -110,7 +110,7 @@ def main():
             if cid in classes.FIXUPS:
                 classes.FIXUPS[cid](mine, doc, project, None)
             if cid in classes.ASSET_FIXUPS:
-                classes.ASSET_FIXUPS[cid](mine, doc, a)
+                classes.ASSET_FIXUPS[cid](mine, doc, a, project)
             diffs = []
             same(mine, theirs, '', diffs, externals, f)
             totals[(cid, 'same' if not diffs else 'differs')] += 1

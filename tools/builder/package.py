@@ -15,8 +15,8 @@ import shutil
 import struct
 import sys
 
+import editor_settings
 import paths
-import unityyaml
 
 PLATFORM_NATIVE_LINK = """<linker>
 \t<assembly fullname="UnityEngine">
@@ -39,7 +39,7 @@ SDK_MODULES = ('libc.suprx', 'libfios2.suprx')
 
 
 def player_settings():
-    return unityyaml.meta(paths.PROJECT / 'ProjectSettings' / 'ProjectSettings.asset')['PlayerSettings']
+    return editor_settings.player_settings()
 
 
 def sfo(entries):

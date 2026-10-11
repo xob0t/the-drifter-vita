@@ -30,6 +30,7 @@ from pathlib import Path
 
 import clrmeta
 import convert
+import editor_settings
 import scripts as scriptlib
 import typehash
 import typemodel
@@ -317,6 +318,8 @@ class Context(AssetContext):
 
 
 def settings(name, project=PROJECT):
+    if name == 'GraphicsSettings.asset':  # as the editor holds them (editor_settings.py)
+        return editor_settings.graphics_settings(project)
     (doc,) = unityyaml.load(project / 'ProjectSettings' / name)
     return doc.fields
 
@@ -329,7 +332,7 @@ class Managers:
     def builtin_extra(self):
         """fileIDs of the built-in extra resources the player's unity_builtin_extra holds: what
         GraphicsSettings names (bar what the build copied elsewhere) and their dependencies."""
-        text = (self.project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
+        text = editor_settings.graphics_settings_text(self.project)
         deps = {fid: d for fid, _, d in builtin_extra_shaders()}
         names = {fid for fid, g in ((int(f), g) for f, g in REF.findall(text)) if g == BUILTIN_EXTRA}
         names |= set(REQUIRED_SHADERS)
@@ -354,6 +357,11 @@ class Managers:
             build = getattr(self, f'class_{cid}', None)
             out.append((pid, cid, build() if build else self.convert(cid)))
         return out
+
+    # PlayerSettings, as the editor holds them when it builds (editor_settings.py)
+    def class_129(self):
+        d, _ = convert.convert(129, editor_settings.player_settings(self.project), self.ctx())
+        return d
 
     # GraphicsSettings
     def class_30(self):

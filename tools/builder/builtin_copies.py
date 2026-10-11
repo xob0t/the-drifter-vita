@@ -4,6 +4,7 @@ Resources/unity_builtin_extra, mapped onto the player's type tree by field name.
 
 from functools import cache
 
+import classes
 import convert
 import UnityPy
 from layout import BUILTIN_EXTRA
@@ -35,4 +36,5 @@ def material(build, file_name, guid, file_id, asset):
         if found
         else {'m_FileID': 0, 'm_PathID': shader, 'file': 'resources/unity_builtin_extra'}
     )
+    classes.sprite_material(data, (guid, file_id), build.project)
     return data, None

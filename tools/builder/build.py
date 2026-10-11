@@ -219,7 +219,7 @@ class Build:
                     if cid in classes.FIXUPS:
                         classes.FIXUPS[cid](data, doc, self.project, None)
                     if cid in classes.ASSET_FIXUPS:
-                        classes.ASSET_FIXUPS[cid](data, doc, a)
+                        classes.ASSET_FIXUPS[cid](data, doc, a, self.project)
             elif cid in self.imported:
                 made = self.imported[cid](self, file_name, g, fid, a)
                 if made:

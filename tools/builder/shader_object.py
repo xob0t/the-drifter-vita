@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
+import editor_settings
 import lz4.block
 import psp2cgc
 import shader_bindings as bindings
@@ -1221,9 +1222,8 @@ SCENE_FOG = re.compile(r'^RenderSettings:\n(?:  .*\n)*?  m_Fog: (\d)\n(?:  .*\n)
 def fog_modes(project, scene_paths):
     """The fog modes whose variants the build keeps: those the build's scenes use (automatic
     stripping) or the ones GraphicsSettings keeps (custom)."""
-    import unityyaml
 
-    graphics = unityyaml.meta(project / 'ProjectSettings' / 'GraphicsSettings.asset')['GraphicsSettings']
+    graphics = editor_settings.graphics_settings(project)
     if int(graphics.get('m_FogStripping', 0)) != FOG_STRIP_AUTOMATIC:
         keep = ('m_FogKeepLinear', 'm_FogKeepExp', 'm_FogKeepExp2')
         return tuple(i + 1 for i, k in enumerate(keep) if graphics.get(k, '1') == '1')
@@ -1247,7 +1247,7 @@ class ProjectShaders:
 
         self.layout, self.placement, self.project = layout, placement, project
         self.always = always_included_shaders(project)
-        graphics = (project / 'ProjectSettings' / 'GraphicsSettings.asset').read_text(encoding='utf-8')
+        graphics = editor_settings.graphics_settings_text(project)
         block = graphics.split('m_AlwaysIncludedShaders:')[1].split('m_PreloadedShaders')[0]
         refs = re.findall(r'fileID: (\d+), guid: ([0-9a-f]{32})', block)
         self.always_builtin = {int(fid) for fid, g in refs if g == BUILTIN_EXTRA}

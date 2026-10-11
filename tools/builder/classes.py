@@ -1,12 +1,16 @@
 """What the editor's build changes beyond copying an object's fields (see convert.py).
 
 Each fixup in FIXUPS takes the release dict, the YAML Doc, the Project and the Scene (None for an
-object in a prefab), and edits the dict in place. ASSET_FIXUPS take the dict, the Doc and the Asset.
+object in a prefab), and edits the dict in place. ASSET_FIXUPS take the dict, the Doc, the Asset and
+the Project.
 """
 
+import re
 from functools import cached_property
 
 import unityyaml
+from assets import REF
+from layout import build_scenes
 
 RENDERERS = {23, 96, 120, 137, 199, 212, 331}  # Mesh, Trail, Line, SkinnedMesh, Particle, Sprite renderers, SpriteMask
 # Unity's built-in tags; the project's own tags are numbered from 20000.
@@ -19,6 +23,8 @@ BUILTIN_TAGS = {
     'Player': 6,
     'GameController': 7,
 }
+SPRITE_SET = re.compile(r'^  m_Sprite: \{fileID: (?!0\})', re.M)
+MATERIAL_LIST = re.compile(r'^  m_Materials:\r?\n((?:  - .*\n)*)', re.M)
 
 
 class Project:
@@ -32,6 +38,20 @@ class Project:
         for i, tag in enumerate(manager.get('tags') or []):
             tags[tag] = 20000 + i
         return tags
+
+    @cached_property
+    def sprite_materials(self):
+        """(GUID, fileID) of each material that a SpriteRenderer or SpriteMask with a sprite uses, in
+        the build's scenes or in a prefab."""
+        files = [self.root / s['path'] for s in build_scenes(self.root)]
+        files += sorted((self.root / 'Assets').rglob('*.prefab'))
+        used = set()
+        for path in files:
+            for doc in path.read_text(encoding='utf-8', errors='replace').split('\n--- !u!')[1:]:
+                if doc.startswith(('212 ', '331 ')) and SPRITE_SET.search(doc):
+                    block = MATERIAL_LIST.search(doc)
+                    used |= {(g, int(fid)) for fid, g in REF.findall(block[1] if block else '')}
+        return used
 
 
 def renderer(d, doc, project, scene):
@@ -94,12 +114,41 @@ for _cid in RENDERERS - {199, 212}:
     FIXUPS[_cid] = renderer
 
 
-def sprite(d, doc, asset):
+def sprite(d, doc, asset, project):
     # The build keys a sprite's render data by the sprite's own asset and fileID.
     import convert
 
     d['m_RenderDataKey'] = (convert.guid_words(asset.guid), doc.file_id)
 
 
-# Fixups that need the asset the object comes from: f(release dict, YAML doc, Asset).
-ASSET_FIXUPS = {213: sprite}
+def material(d, doc, asset, project):
+    sprite_material(d, (asset.guid, doc.file_id), project)
+
+
+def sprite_material(d, key, project):
+    """The editor enables ETC1_EXTERNAL_ALPHA on every material that a SpriteRenderer or SpriteMask
+    with a sprite uses, whatever the shader and the texture format. Built-in materials too."""
+    keywords = d['m_ShaderKeywords'].split()
+    if key in project.sprite_materials and 'ETC1_EXTERNAL_ALPHA' not in keywords:
+        d['m_ShaderKeywords'] = ' '.join(['ETC1_EXTERNAL_ALPHA', *keywords])
+
+
+# Fixups that need the asset the object comes from: f(release dict, YAML doc, Asset, Project).
+ASSET_FIXUPS = {21: material, 213: sprite}
+
+
+# A 2D collider takes its sprite tiling from its sprite renderer (sprite_tiling.py).
+def collider_in_scene(d, doc, project, scene):
+    import sprite_tiling
+
+    sprite_tiling.in_scene(d, doc, project, scene)
+
+
+def collider_in_prefab(d, doc, asset, project):
+    import sprite_tiling
+
+    sprite_tiling.in_prefab(d, doc, asset, project)
+
+
+FIXUPS[60] = FIXUPS[61] = collider_in_scene
+ASSET_FIXUPS[60] = ASSET_FIXUPS[61] = collider_in_prefab
