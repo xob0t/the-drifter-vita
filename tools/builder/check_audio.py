@@ -1,11 +1,11 @@
 """Build the AudioClips and their .resource streams and compare them with the reference build.
 
-    uv run --with soundfile tools/pure/check_audio.py [--every N] [--workers N] [--no-snr]
+    uv run --with soundfile tools/builder/check_audio.py [--every N] [--workers N] [--no-snr]
 
 Clips pair with the reference by path ID (layout.py reproduces the reference order). Reports
 per-field AudioClip matches, FSB5 header matches field by field, the stream layout (offsets and
 file sizes) and the sound: SNR of our HEVAG and Unity's against the stretched source, and of ours
-against Unity's, all decoded as the console does. Our .resource files go to work/pure/audio/.
+against Unity's, all decoded as the console does. Our .resource files go to work/builder/audio/.
 --every N checks one clip in N (the stream layout then is not comparable and is skipped).
 """
 

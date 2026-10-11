@@ -1,6 +1,6 @@
 """Rebuild every Direct3D 11 shader program of the Windows reference build from source and compare.
 
-    uv run --with lz4 tools/pure/check_dx11.py [--only name,...] [-v]
+    uv run --with lz4 tools/builder/check_dx11.py [--only name,...] [-v]
 
 For each d3d11 subprogram of builds/drifter-2018.2.19f1: compile it with dx11.py, then compare
 the record's program code (header + stripped DXBC), the binding tail, the GPU program type and the

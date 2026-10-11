@@ -1,6 +1,6 @@
 """Build the PS Vita player from the translated project without Unity, in one go.
 
-    uv run tools/pure/make.py [--out dir] [--vpk]
+    uv run tools/builder/make.py [--out dir] [--vpk]
 
 Lays out the build folder (package.py), writes the serialized data and streams (build.py), builds
 the game code module (il2cpp.py), and with --vpk packages it like the pipeline's `package` stage.

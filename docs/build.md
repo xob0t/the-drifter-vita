@@ -139,7 +139,7 @@ uv run tools/downgrade/pipeline.py all --platform vita
 uv run tools/downgrade/pipeline.py package
 ```
 
-`all --platform vita` assembles `work/drifter-2018.2.19f1-vita` and builds the player into `builds/drifter-2018.2.19f1-vita/`, without running the Unity editor ([pure.md](pure.md)). A rebuild takes about 5 minutes. `package` turns the build into `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page.
+`all --platform vita` assembles `work/drifter-2018.2.19f1-vita` and builds the player into `builds/drifter-2018.2.19f1-vita/`, without running the Unity editor ([builder.md](builder.md)). A rebuild takes about 5 minutes. `package` turns the build into `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page.
 
 To build with the Unity editor instead, add `--unity` to both commands. The player goes to `builds/drifter-2018.2.19f1-vita-unity/` and the VPK to `builds/drifter-2018.2.19f1-vita-unity.vpk`. This needs a license. The editor converts the textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)).
 

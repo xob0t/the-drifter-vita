@@ -1,7 +1,7 @@
 """Bake every AnimationClip and AnimatorController the layout places in the shared files and compare
 them with the reference build's.
 
-    uv run tools/pure/check_animation.py [file names...] [--class 74|91] [--show 3]
+    uv run tools/builder/check_animation.py [file names...] [--class 74|91] [--show 3]
 
 Objects pair by path ID as in check_assets.py. Where the object at that path ID is not the same
 clip (class and name), the layout's order within the class disagrees with the reference; such

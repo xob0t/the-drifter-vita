@@ -1,6 +1,6 @@
-# Building without the Unity editor
+# The builder: building without the Unity editor
 
-`tools/pure` builds the PS Vita app from the translated project without running the Unity editor. This is the pipeline's default way to build the Vita app. It needs no Unity license and imports no assets, and a rebuild takes about 5 minutes.
+The builder (`tools/builder`) builds the PS Vita app from the translated project without running the Unity editor. This is the pipeline's default way to build the Vita app. It needs no Unity license and imports no assets, and a rebuild takes about 5 minutes.
 
 It does what Unity's import and build would do for this project. It still uses some files from the Unity installation, but only as data and tools: about 100 MB of CGIncludes, the PS Vita player module, and IL2CPP with its PS Vita plugin. It also uses the PS Vita SDK's compiler and linker (psp2cgc, psp2snc, psp2ld). The pipeline's `rip` and `project` stages are the same either way; only `build` differs.
 
@@ -9,7 +9,7 @@ It does what Unity's import and build would do for this project. It still uses s
 ```powershell
 uv run tools/downgrade/pipeline.py build --platform vita           # builds/drifter-2018.2.19f1-vita[-diag]
 uv run tools/downgrade/pipeline.py build --platform vita --unity   # the same with the Unity editor, into -vita-unity[-diag]
-uv run tools/pure/make.py --vpk                                    # the same as the first, plus a VPK
+uv run tools/builder/make.py --vpk                                    # the same as the first, plus a VPK
 ```
 
 The editor-free build is for the PS Vita and Unity 2018.2.19f1. Other versions, and Windows players, are built with the editor.
@@ -17,8 +17,8 @@ The editor-free build is for the PS Vita and Unity 2018.2.19f1. Other versions, 
 There is also an editor-free Windows build, outside the pipeline, used for play-testing against the original game with the parity tools ([parity.md](parity.md)):
 
 ```powershell
-uv run tools/pure/build.py --platform windows   # the data, from the PC-variant project
-uv run tools/pure/windows.py --own-data         # a Windows player around it
+uv run tools/builder/build.py --platform windows   # the data, from the PC-variant project
+uv run tools/builder/windows.py --own-data         # a Windows player around it
 ```
 
 ## Status
@@ -89,16 +89,16 @@ How Unity's build arranges things, worked out by comparing against its output:
 Each check compares one part of the output with Unity's build:
 
 ```powershell
-uv run tools/pure/check_shaders.py          # every shader program and its bindings
-uv run tools/pure/check_shader_objects.py   # Shader objects
-uv run tools/pure/check_typehash.py         # type table hashes
-uv run tools/pure/check_levels.py           # level objects
-uv run tools/pure/check_layout.py           # which objects each file holds, in order
-uv run tools/pure/check_assets.py           # asset objects
-uv run tools/pure/check_animation.py        # clips and controllers
-uv run tools/pure/check_imported.py         # textures, fonts, text assets
-uv run tools/pure/check_audio.py            # audio clips and streams
-uv run tools/pure/check_managers.py         # globalgamemanagers, MonoScripts, PreloadData
-uv run tools/pure/build.py --compare        # the written files, byte for byte
-uv run tools/pure/il2cpp.py --compare       # the code module
+uv run tools/builder/check_shaders.py          # every shader program and its bindings
+uv run tools/builder/check_shader_objects.py   # Shader objects
+uv run tools/builder/check_typehash.py         # type table hashes
+uv run tools/builder/check_levels.py           # level objects
+uv run tools/builder/check_layout.py           # which objects each file holds, in order
+uv run tools/builder/check_assets.py           # asset objects
+uv run tools/builder/check_animation.py        # clips and controllers
+uv run tools/builder/check_imported.py         # textures, fonts, text assets
+uv run tools/builder/check_audio.py            # audio clips and streams
+uv run tools/builder/check_managers.py         # globalgamemanagers, MonoScripts, PreloadData
+uv run tools/builder/build.py --compare        # the written files, byte for byte
+uv run tools/builder/il2cpp.py --compare       # the code module
 ```

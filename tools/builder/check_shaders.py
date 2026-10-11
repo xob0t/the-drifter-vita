@@ -1,6 +1,6 @@
 """Rebuild every shader program of the reference build from source and compare.
 
-    uv run --with lz4 tools/pure/check_shaders.py
+    uv run --with lz4 tools/builder/check_shaders.py
 
 For each subprogram: compile it with psp2cgc, derive Unity's binding data from the GXP and the
 SDB, and compare the code bytes (GXP + header + uniform names; the source GUID aside), the blob

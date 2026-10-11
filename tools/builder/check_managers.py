@@ -1,7 +1,7 @@
 """Compare managers.py with the reference build: globalgamemanagers, the MonoScripts of
 globalgamemanagers.assets, and every PreloadData.
 
-    uv run tools/pure/check_managers.py [--show 5] [--skip-preload | --only-preload]
+    uv run tools/builder/check_managers.py [--show 5] [--skip-preload | --only-preload]
 
 Objects pair by path ID; references compare as (file, path ID). Lists whose order is the editor's
 instance ID or hash map order (MonoManager.m_Scripts, ScriptMapper, BuildSettings.runtimeClassHashes,

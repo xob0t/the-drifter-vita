@@ -1,7 +1,7 @@
 """The game code: Unity's IL2CPP step of a PS Vita build, run without the editor.
 
-    uv run tools/pure/il2cpp.py [--out dir] [--file-count N] [--force] [--compare [--reference player]]
-    uv run tools/pure/il2cpp.py --list-unity-files
+    uv run tools/builder/il2cpp.py [--out dir] [--file-count N] [--force] [--compare [--reference player]]
+    uv run tools/builder/il2cpp.py --list-unity-files
 
 Unity's build turns the managed assemblies into Media/Modules/il2CppAssemblies.suprx with two of
 its own tools, which run headless and need no license:
@@ -22,7 +22,7 @@ the engine modules of the PS Vita IL2CPP variation (UnityEngine.VideoModule ther
 the one under PSP2Player/Tools), the runtime variant of each extension the player ships, and the
 class libraries of the unityjit profile those reference.
 
-A build directory under work/pure/il2cpp keeps the staging area and psp2snc's object cache, so a
+A build directory under work/builder/il2cpp keeps the staging area and psp2snc's object cache, so a
 rebuild recompiles only C++ files whose content changed; when no input changed at all the previous
 outputs are reused.
 

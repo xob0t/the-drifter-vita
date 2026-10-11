@@ -1,6 +1,6 @@
 """Compare the Windows data build.py wrote with the Windows reference build, object by object.
 
-    uv run tools/pure/check_windows.py [--out dir] [--only file,...] [--class Name] [-v]
+    uv run tools/builder/check_windows.py [--out dir] [--only file,...] [--class Name] [-v]
 
 For each serialized file: type table and externals differences, objects missing on either side,
 and per class how many objects are byte-identical. With --class, the first differing fields of
@@ -17,7 +17,7 @@ from build import TARGETS
 from container import parse_serialized
 
 TARGET = TARGETS['windows']
-OUT = paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-pure' / TARGET.data_dir
+OUT = paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-builder' / TARGET.data_dir
 
 
 def serialized_names(folder):

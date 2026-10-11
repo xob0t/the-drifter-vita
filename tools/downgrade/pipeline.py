@@ -6,7 +6,7 @@ Stages, each runnable alone:
   rip      AssetRipper exports the game as a project serialized for the target version.
   project  Assemble work/drifter-<version>[-vita]: rewrite assemblies, prune plugins, decompile
            shaders over AssetRipper's dummies, add the build script.
-  build    Build the player. The PS Vita player is built without running Unity (tools/pure);
+  build    Build the player. The PS Vita player is built without running Unity (tools/builder);
            --unity, and every Windows player, imports and builds it with the editor in batch mode.
   package  PS Vita: turn the build into a VPK.
   deploy   PS Vita: package, then upload the VPK to the console (DRIFTER_VITA_HOST, see common.py).
@@ -783,7 +783,7 @@ def main():
         '--unity',
         action='store_true',
         help='build, package, deploy: the PS Vita player built by the Unity editor, into a separate -unity folder. '
-        f'Without it the Vita player for {TARGET} is built without running Unity (tools/pure/make.py: no license, '
+        f'Without it the Vita player for {TARGET} is built without running Unity (tools/builder/make.py: no license, '
         "no import; it reads the installed editor's files and the SDK's tools). Windows players always use the editor",
     )
     parser.add_argument(
@@ -825,7 +825,7 @@ def main():
             f'again or build with the same --diag'
         )
     if args.stage in ('build', 'all') and not unity:
-        sys.path.insert(0, str(HERE.parent / 'pure'))
+        sys.path.insert(0, str(HERE.parent / 'builder'))
         import make
 
         make.make(output)

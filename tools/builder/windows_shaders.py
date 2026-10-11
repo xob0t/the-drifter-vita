@@ -83,7 +83,7 @@ def enumerate_variants(snippet, material_sets=(), all_features=False, fog_modes=
 
 
 # ---------------------------------------------------------------------------------------------
-# Compiling, with results kept under work/pure/windows
+# Compiling, with results kept under work/builder/windows
 
 
 def cache_path(*key):

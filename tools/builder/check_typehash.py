@@ -1,6 +1,6 @@
 """Compute every type table hash of the reference build from scratch and compare.
 
-    uv run tools/pure/check_typehash.py
+    uv run tools/builder/check_typehash.py
 
 Built-in classes: OldTypeHash from the TPK release tree. Scripts: ScriptID from the MonoScript's
 names, OldTypeHash from the script's field model (typemodel.py) over the editor base.

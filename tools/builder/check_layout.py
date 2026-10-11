@@ -1,6 +1,6 @@
 """Compare layout.py's files with the reference build: which objects each holds, in what order.
 
-    uv run tools/pure/check_layout.py [file names...] [--show 5]
+    uv run tools/builder/check_layout.py [file names...] [--show 5]
 
 Objects are compared by class and, for assets, name, in path ID order (PreloadData aside).
 """

@@ -503,7 +503,7 @@ class Managers:
 
     # RuntimeInitializeOnLoadManager: the classes in type definition order. The editor's order is
     # its own (native; no name, token or hash order reproduces it). The set and the load types
-    # match, and docs/pure.md says why the order of Compat's methods does not matter.
+    # match, and docs/builder.md says why the order of Compat's methods does not matter.
     def class_300(self):
         assemblies, namespaces, classes, methods = [], [], [], []
         before, after = [], []

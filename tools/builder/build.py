@@ -1,6 +1,6 @@
 """Build a player's data from the translated project, without Unity.
 
-    uv run tools/pure/build.py [--platform vita|windows] [--out dir] [--only level0,...] [--compare]
+    uv run tools/builder/build.py [--platform vita|windows] [--out dir] [--only level0,...] [--compare]
 
 Writes Media/ (PS Vita) or TheDrifter_Data/ (Windows) under the output folder. --compare checks
 every written file against the platform's reference build byte for byte and reports the first
@@ -310,7 +310,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--platform', choices=sorted(TARGETS), default='vita')
     parser.add_argument(
-        '--out', type=Path, help="default: the pipeline's builds/drifter-<version>-vita[-diag], -pure for windows"
+        '--out', type=Path, help="default: the pipeline's builds/drifter-<version>-vita[-diag], -builder for windows"
     )
     parser.add_argument('--only', default='')
     parser.add_argument('--compare', action='store_true')
@@ -319,7 +319,9 @@ def main():
         import windows_build
 
         windows_build.register(Build)
-    out = args.out or (paths.OUT if args.platform == 'vita' else paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-pure')
+    out = args.out or (
+        paths.OUT if args.platform == 'vita' else paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-builder'
+    )
     write_all(Build(out, args.platform), set(filter(None, args.only.split(','))), args.compare)
     return 0
 

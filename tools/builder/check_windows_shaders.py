@@ -1,6 +1,6 @@
 """Build every Shader object of the Windows build and compare it with the Windows reference.
 
-    uv run --with lz4 tools/pure/check_windows_shaders.py [--only name,...] [-v]
+    uv run --with lz4 tools/builder/check_windows_shaders.py [--only name,...] [-v]
 
 Per shader (paired by file and path ID): the parsed form field by field (gpuProgramID's low
 16 bits of project shaders aside, see shader_object.py), the platforms, and the decompressed

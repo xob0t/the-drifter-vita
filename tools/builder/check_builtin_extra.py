@@ -1,6 +1,6 @@
 """Build Resources/unity_builtin_extra and compare it with the reference build's.
 
-    uv run tools/pure/check_builtin_extra.py [--show 3]
+    uv run tools/builder/check_builtin_extra.py [--show 3]
 
 Per object: the Shader tree (blob compared record by record, without the GXP source GUID) and
 its serialized bytes once the reference's LZ4 stream (any stream will do) and, for project

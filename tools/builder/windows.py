@@ -1,6 +1,6 @@
 """Lay out a runnable Windows (x64, Mono) player of the PC project without Unity.
 
-    uv run tools/pure/windows.py [--out dir] [--data dir | --own-data] [--compare] [--run seconds]
+    uv run tools/builder/windows.py [--out dir] [--data dir | --own-data] [--compare] [--run seconds]
 
 What Unity's Win64 Mono build writes besides the serialized data, and where it comes from:
 
@@ -22,8 +22,8 @@ The serialized files (levels, sharedassets, resources, globalgamemanagers, their
 reference build's data folder. With --own-data they are the ones `build.py --platform windows`
 already wrote into the output folder (its default output is this script's default --out):
 
-    uv run --with soundfile --with lz4 tools/pure/build.py --platform windows
-    uv run tools/pure/windows.py --own-data
+    uv run --with soundfile --with lz4 tools/builder/build.py --platform windows
+    uv run tools/builder/windows.py --own-data
 
 --compare checks every file against the reference Windows build (builds/drifter-2018.2.19f1).
 --run starts the player for that many seconds and reports what Player.log says.
@@ -43,7 +43,7 @@ import unityyaml
 NAME = 'TheDrifter'
 PROJECT = paths.common.WORK / f'drifter-{paths.TARGET}'
 REFERENCE = paths.ROOT / 'builds' / f'drifter-{paths.TARGET}'
-OUT = paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-pure'
+OUT = paths.ROOT / 'builds' / f'drifter-{paths.TARGET}-builder'
 VARIATION = paths.EDITOR_DATA / 'PlaybackEngines' / 'windowsstandalonesupport' / 'Variations'
 VARIATION = VARIATION / 'win64_nondevelopment_mono'
 CLASS_LIBRARIES = paths.EDITOR_DATA / 'MonoBleedingEdge' / 'lib' / 'mono' / '4.5'

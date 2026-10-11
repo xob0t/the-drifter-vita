@@ -38,7 +38,7 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
 
    The VPK is `builds/drifter-2018.2.19f1-vita.vpk`.
 
-The build doesn't run the Unity editor, so you don't need a Unity license. It only reads files from the editor's installation ([docs/pure.md](docs/pure.md)). A rebuild takes about 5 minutes. The first build takes longer, because it encodes the game's audio and compiles its shaders.
+The build doesn't run the Unity editor, so you don't need a Unity license. It only reads files from the editor's installation ([docs/builder.md](docs/builder.md)). A rebuild takes about 5 minutes. The first build takes longer, because it encodes the game's audio and compiles its shaders.
 
 To build with the Unity editor instead, add `--unity` to both commands; the VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
 
@@ -72,7 +72,7 @@ The repository holds only the recipe. You run it on the copy of The Drifter you 
 | [docs/parity.md](docs/parity.md)     | The test probe and tools, and how to check a change                             |
 | [docs/switches.md](docs/switches.md) | Every `-compat-*` switch with its default on Windows and on the Vita            |
 | [docs/vitalike.md](docs/vitalike.md) | Measuring CPU costs on a PC slowed to the Vita's speed                          |
-| [docs/pure.md](docs/pure.md)         | How the Vita build works without the Unity editor, and how it compares          |
+| [docs/builder.md](docs/builder.md)         | How the Vita build works without the Unity editor, and how it compares          |
 
 ## License
 

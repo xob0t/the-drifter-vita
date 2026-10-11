@@ -1,7 +1,7 @@
 """Bake every AudioMixerController the layout places in the shared files and compare it with the
 reference build's.
 
-    uv run tools/pure/check_mixer.py [file names...]
+    uv run tools/builder/check_mixer.py [file names...]
 
 Objects pair by path ID as in check_assets.py; every field is compared, m_MixerConstant down to
 each snapshot value.

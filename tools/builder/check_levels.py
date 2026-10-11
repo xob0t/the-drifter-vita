@@ -1,6 +1,6 @@
 """Convert scenes to level objects and compare them with the reference build's levelN files.
 
-    uv run tools/pure/check_levels.py [level numbers...] [--class N] [--show 5]
+    uv run tools/builder/check_levels.py [level numbers...] [--class N] [--show 5]
 
 Objects are paired by what they are (class, GameObject path, index among the GameObject's
 components of that class), not by PathID, and references are compared the same way. References

@@ -1,8 +1,8 @@
 """Build the objects of imported textures, fonts and text assets and compare them with the
 reference build: fields, the serialized object bytes, and the image data in the .resS streams.
 
-    uv run tools/pure/check_imported.py [file names...] [--show 3]
-    uv run --with quicktex tools/pure/check_imported.py      # Unity-like DXT quality
+    uv run tools/builder/check_imported.py [file names...] [--show 3]
+    uv run --with quicktex tools/builder/check_imported.py      # Unity-like DXT quality
 
 Objects pair by path ID (layout.py reproduces the reference order). Uncompressed image data must
 match byte for byte; DXT data comes from a different encoder, so both are decoded and compared

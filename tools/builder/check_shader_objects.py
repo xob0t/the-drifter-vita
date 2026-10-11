@@ -1,6 +1,6 @@
 """Build every Shader object the layout places and compare it with the reference build.
 
-    uv run tools/pure/check_shader_objects.py [--show 3] [shader names...]
+    uv run tools/builder/check_shader_objects.py [--show 3] [shader names...]
 
 Shaders pair by (file, path ID). The blob is compared record by record after decompression
 (any LZ4 stream will do, so the compressed bytes are not compared); a record's code compares

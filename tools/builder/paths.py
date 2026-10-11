@@ -24,7 +24,7 @@ PSP2_PLAYER = EDITOR_DATA / 'PlaybackEngines' / 'PSP2Player'
 SDK = Path(common.setting('SCE_PSP2_SDK_DIR') or r'C:\vitasdk\sdk')
 PSP2CGC = SDK / 'host_tools' / 'bin' / 'psp2cgc.exe'
 # Scratch space and outputs.
-WORK = common.WORK / 'pure'
+WORK = common.WORK / 'builder'
 # The pipeline's build folder (pipeline.py build --platform vita).
 OUT = ROOT / 'builds' / (f'drifter-{TARGET}-vita' + ('-diag' if DIAG else ''))
 

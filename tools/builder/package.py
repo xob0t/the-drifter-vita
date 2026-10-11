@@ -1,6 +1,6 @@
 """Lay out the PS Vita build folder around the data and code the other modules write.
 
-    uv run tools/pure/package.py [--out dir] [--compare]
+    uv run tools/builder/package.py [--out dir] [--compare]
 
 What Unity's build copies or generates besides the serialized files and the IL2CPP output:
 the player (`<product>.self`, Unity's stock PSP2Player_Il2cpp.self, the app's eboot), the system

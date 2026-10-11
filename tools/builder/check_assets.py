@@ -1,6 +1,6 @@
 """Convert the YAML assets of the shared files and compare them with the reference build.
 
-    uv run tools/pure/check_assets.py [file names...] [--class N] [--show 3]
+    uv run tools/builder/check_assets.py [file names...] [--class N] [--show 3]
 
 Objects pair by path ID (layout.py reproduces the reference order); references compare as
 (file, path ID).

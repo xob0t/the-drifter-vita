@@ -4,7 +4,7 @@
     data = texture(asset, file_name, stream)     # Texture2D release dict; image bytes appended to stream
     data = sprite(asset, placement, file_name)    # the Sprite (21300000) of a single-sprite texture
 
-What the reference build shows (tools/pure/check_imported.py verifies it):
+What the reference build shows (tools/builder/check_imported.py verifies it):
 - Format: the importer's PSP2 override if it is on, else the default platform's setting
   (automatic: DXT5/DXT1 when compressed, RGBA32/RGB24 when not, by whether the image has
   alpha). The PS Vita compresses only power-of-two textures: any other size falls back to
@@ -178,7 +178,7 @@ def load_rgba(path):
 
 
 def pixels(path, settings, fmt, rgba):
-    """The image data Unity stores for one texture (cached under work/pure/textures)."""
+    """The image data Unity stores for one texture (cached under work/builder/textures)."""
     recipe = (CACHE_VERSION, fmt, settings.get('alphaIsTransparency'), ENCODER_NAME)
     key = hashlib.sha1(path.read_bytes() + repr(recipe).encode())
     cached = CACHE / f'{key.hexdigest()}.bin'
