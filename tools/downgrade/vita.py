@@ -293,6 +293,7 @@ def screenshot(out: Path):
 
 
 PARSE_CORE_COMMIT = '644b5f081c5f3c9b205180793ab8f4209dfd9d97'
+PARSE_CORE_SHA256 = '5b81bf0d6e05df282e1189b7c0e7bc9ffd3005655b2d2d1d6787747ac66bc96a'  # its GitHub zip
 ENGINE_BASE = 0x81000000  # link address of the first segment of the player and of the IL2CPP module
 STACK_WORDS = 700  # words of the crashed thread's stack scanned for return addresses
 ADDR2LINE_BATCH = 40  # addresses per psp2bin call
@@ -300,11 +301,12 @@ PSP2BIN = 'host_tools/build/bin/psp2bin.exe'  # in the PS Vita SDK
 
 
 def parse_core(dump: Path):
-    """A crash dump read with vita-parse-core, which is cloned on first use."""
+    """A crash dump read with vita-parse-core, which is downloaded on first use."""
     parser_dir = pipeline.EXTERNAL / 'vita-parse-core'
-    if not parser_dir.exists():
-        pipeline.run(['git', 'clone', '-q', 'https://github.com/xyzz/vita-parse-core', parser_dir])
-        pipeline.run(['git', '-C', parser_dir, 'checkout', '-q', PARSE_CORE_COMMIT])
+    if not (parser_dir / 'util.py').exists():
+        from common import github_source
+
+        github_source('xyzz/vita-parse-core', PARSE_CORE_COMMIT, PARSE_CORE_SHA256, parser_dir)
     sys.path.insert(0, str(parser_dir))
     import util
 

@@ -76,6 +76,7 @@ DEFAULT_GAME = default_game()
 TARGET = '2018.2.19f1'
 SOURCE_VERSION = '2020.3.49f1'
 USCSANDBOX_COMMIT = '563391b849116de5d470420cc0e3f1bc6a4b6157'
+USCSANDBOX_SHA256 = '05459f727bd591cd588b1b4d3baa8d8c0b0b8bf4ad3990e7f1f1a187594f9c82'  # its GitHub zip
 # Mono.Cecil, which the assembly rewriter, StubAssembly and the probe's injector are built with: the NuGet
 # release of the version Unity 2020.3's Unity.Cecil.dll forks (0.10.0-beta6). The rewritten assemblies
 # are byte-identical to those made with Unity.Cecil; later releases write them differently.
@@ -197,6 +198,64 @@ def mono_cecil():
         CECIL.parent.mkdir(parents=True, exist_ok=True)
         CECIL.write_bytes(data)
     return CECIL
+
+
+def github_source(repository, commit, digest, folder: Path):
+    """A GitHub repository's files at a pinned commit, from its zip archive, into folder (replaced)."""
+    import shutil
+    import stat
+    import tempfile
+    import zipfile
+
+    with tempfile.TemporaryDirectory() as temp:
+        archive = download(f'https://github.com/{repository}/archive/{commit}.zip', Path(temp) / 'source.zip', digest)
+        if folder.exists():
+            # Git's object files (in a clone made by earlier versions of the tools) are read-only.
+            shutil.rmtree(folder, onexc=lambda _, path, __: (os.chmod(path, stat.S_IWRITE), os.remove(path)))
+        with zipfile.ZipFile(archive) as handle:
+            for member in handle.infolist():
+                name = member.filename.split('/', 1)[1]  # below the archive's top folder
+                if name and not member.is_dir():
+                    target = folder / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(handle.read(member))
+    return folder
+
+
+def apply_patch(patch: Path, folder: Path):
+    """Apply a unified diff (git diff's output; the lines before its first file are a comment) to the
+    files in folder. Each hunk must match at the line its header names. Lines are compared without
+    their line ending, and each file keeps its own."""
+    lines = patch.read_text(encoding='utf-8').splitlines()
+    i = 0
+    while i < len(lines):
+        if not lines[i].startswith('--- '):
+            i += 1
+            continue
+        path = folder / lines[i + 1].removeprefix('+++ b/')
+        i += 2
+        text = path.read_bytes().decode('utf-8')
+        newline = '\r\n' if '\r\n' in text else '\n'
+        source = re.split(r'\r?\n', text)
+        patched, done = [], 0  # done: the source lines already copied or replaced
+        while i < len(lines) and lines[i].startswith('@@'):
+            header = re.match(r'@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@', lines[i])
+            start, old_count, new_count = int(header[1]), int(header[2] or 1), int(header[3] or 1)
+            i += 1
+            old, new = [], []
+            while len(old) < old_count or len(new) < new_count:
+                kind, body = lines[i][:1] or ' ', lines[i][1:]
+                i += 1
+                if kind != '+':
+                    old.append(body)
+                if kind != '-':
+                    new.append(body)
+            first = start - 1 if old_count else start
+            if source[first : first + len(old)] != old:
+                sys.exit(f'{patch.name}: a hunk does not match {path} at line {start}.')
+            patched += source[done:first] + new
+            done = first + len(old)
+        path.write_bytes(newline.join(patched + source[done:]).encode('utf-8'))
 
 
 SHADER_NAME = re.compile(r'\s*Shader\s+"([^"]+)"')  # a .shader file's name line

@@ -19,9 +19,12 @@ from common import (
     SHADER_NAME,
     SOURCE_VERSION,
     USCSANDBOX_COMMIT,
+    USCSANDBOX_SHA256,
     WORK,
+    apply_patch,
     editor_data,
     game_data,
+    github_source,
     log,
     meta_of,
     run,
@@ -94,11 +97,9 @@ def uscsandbox():
                 '-NoPath',
             ]
         )
-    if not repo.exists():
-        run(['git', 'clone', 'https://github.com/nesrak1/USCSandbox.git', repo])
-    run(['git', '-C', repo, 'checkout', '-q', '--force', USCSANDBOX_COMMIT])
+    github_source('nesrak1/USCSandbox', USCSANDBOX_COMMIT, USCSANDBOX_SHA256, repo)
     for patch in patches:
-        run(['git', '-C', repo, 'apply', patch.resolve()])
+        apply_patch(patch, repo)
     run([dotnet, 'build', '-c', 'Release', repo / 'USCSandbox' / 'USCSandbox.csproj'])
     stamp.write_text(digest)
     return exe

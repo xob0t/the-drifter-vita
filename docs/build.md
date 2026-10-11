@@ -6,21 +6,18 @@ The steps below are for Windows 10 or 11, x64.
 
 ## 1. Set up
 
-1. Install The Drifter from Steam, and these three tools:
+1. Install The Drifter from Steam, and these two tools:
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-   winget install Git.Git
    winget install OpenJS.NodeJS.LTS
    ```
 
-   Node.js is optional, but it cuts a first Vita build from about 100 minutes to about 40 (see [Node.js](#nodejs)). Open a new terminal afterwards, so it finds the three.
+   Node.js is optional, but it cuts a first Vita build from about 100 minutes to about 40 (see [Node.js](#nodejs)). Open a new terminal afterwards, so it finds them.
 
-2. Clone the repository and run the setup script for your target:
+2. Download the repository (Code → Download ZIP on GitHub) and extract it, or clone it. In its folder, run the setup script for your target:
 
    ```powershell
-   git clone <this repository's URL> the-drifter-vita
-   cd the-drifter-vita
    uv run tools/setup.py                                         # Windows player
    uv run tools/setup.py --vita                                  # PS Vita app
    ```
@@ -105,7 +102,6 @@ With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS
 These are the steps the script takes, if you prefer to do them yourself:
 
 - `uv sync` in the repository installs the Python packages from `uv.lock`.
-- Git: the pipeline clones USCSandbox, the shader decompiler, with it.
 - The game: the pipeline looks in `C:\Program Files (x86)\Steam\steamapps\common\The Drifter`. Set `DRIFTER_GAME` or pass `--game <path>` if yours is elsewhere.
 - [AssetRipper](https://github.com/AssetRipper/AssetRipper) 2.0.0: extract the release's `AssetRipper_win_x64.zip` to `tools/external/assetripper-2.0.0`.
 - Unity **2018.2.19f1**: `UnitySetup64-2018.2.19f1.exe /S /D=%LOCALAPPDATA%\Unity\Editors\2018.2.19f1` ([installer](https://download.unity3d.com/download_unity/06990f28ba00/Windows64EditorInstaller/UnitySetup64-2018.2.19f1.exe)).

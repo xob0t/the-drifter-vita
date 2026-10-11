@@ -6,7 +6,7 @@ this repository (see THIRD_PARTY_NOTICES).
 
 What it changes: grab passes are written as GrabPass blocks, constant buffer reads keep
 their swizzle order, and a write to an output register that packs several semantics is split
-per semantic. git apply skips these lines before the first diff.
+per semantic. Lines before the first diff are a comment.
 
 diff --git a/USCSandbox/Processor/ShaderProcessor.cs b/USCSandbox/Processor/ShaderProcessor.cs
 index 2108c20..9b5dd3f 100644
