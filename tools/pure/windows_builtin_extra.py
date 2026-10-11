@@ -45,11 +45,11 @@ def stage_variants(snippet, stage, registry, strip):
 
 
 class Builder(be.Builder):
-    def __init__(self, layout, project, registry=None, pool=None):
-        registry = registry if registry is not None else so.KeywordRegistry()
+    def __init__(self, layout, project):
+        registry = so.KeywordRegistry()
         for k in ws.BUILTIN_KEYWORDS:
             registry.index.setdefault(k, len(registry.index))
-        super().__init__(layout, project, registry, pool)
+        super().__init__(layout, project, registry)
         self.project = project
 
     def stripper(self, snippet):

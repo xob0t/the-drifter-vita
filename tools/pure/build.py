@@ -123,7 +123,7 @@ class Build:
         self.project = classes.Project(self.root)
         self.entries = managers.monoscripts(self.layout, self.root)
         self.monoscripts = managers.monoscript_ids(self.entries)
-        managers.register(self.placement, self.layout, self.entries)
+        managers.register(self.placement, self.entries)
         self.preloader = preloadlib.Preload(self.layout, self.placement, self.root)
         self.imported = self.IMPORTED_FOR[platform]
         self.trees = {}
@@ -309,7 +309,9 @@ def write_all(build, only=frozenset(), compare_files=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--platform', choices=sorted(TARGETS), default='vita')
-    parser.add_argument('--out', type=Path, help='default: builds/drifter-<version>-vita-pure, -pure for windows')
+    parser.add_argument(
+        '--out', type=Path, help="default: the pipeline's builds/drifter-<version>-vita[-diag], -pure for windows"
+    )
     parser.add_argument('--only', default='')
     parser.add_argument('--compare', action='store_true')
     args = parser.parse_args()

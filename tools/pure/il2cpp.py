@@ -305,7 +305,7 @@ class Inputs:
                 out[mdb.name] = mdb
         return out
 
-    def roots(self, saved: Path | None = None):
+    def roots(self, saved: Path):
         """The assemblies with classes the player creates by name, in Unity's order (extensions
         first, then the project's DLLs), with those classes. Reading the types takes a while, so
         the answer is kept in `saved` for the same assemblies."""
@@ -316,15 +316,14 @@ class Inputs:
         key = digest(
             Path(__file__).read_bytes(), *(f'{p}:{hashlib.sha256(p.read_bytes()).hexdigest()}' for p in sources)
         )
-        if saved and saved.exists():
+        if saved.exists():
             data = json.loads(saved.read_text(encoding='utf-8'))
             if data['key'] == key:
                 return [(self.assemblies[name], types) for name, types in data['roots']]
         out = self.read_roots(sources)
-        if saved:
-            saved.parent.mkdir(parents=True, exist_ok=True)
-            roots = [(a.path.name, types) for a, types in out]
-            saved.write_text(json.dumps({'key': key, 'roots': roots}), encoding='utf-8')
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        roots = [(a.path.name, types) for a, types in out]
+        saved.write_text(json.dumps({'key': key, 'roots': roots}), encoding='utf-8')
         return out
 
     def read_roots(self, sources):
@@ -628,12 +627,12 @@ def il2cpp_command(inputs, roots, managed, module, generated, appinfo_o, cache):
     ]
 
 
-def unity_files(inputs=None):
+def unity_files():
     """The files of Unity's installation the build reads, to take just those from the installers:
     UnityLinker with its descriptors, il2cpp and MapFileParser, the libil2cpp sources il2cpp compiles (with the
     libraries they include), the PS Vita plugin with its platform layer, Boehm GC and pthread, the
     link.xml whitelists, the managed inputs and Mono's etc folder."""
-    inputs = inputs or gather()
+    inputs = gather()
     il2cpp = IL2CPP_ROOT.parent
     trees = [IL2CPP_BUILD, il2cpp / 'LinkerDescriptors', LIBIL2CPP, il2cpp / 'external', MAP_FILE_PARSER.parent]
     trees += [PSP2_IL2CPP, CLASS_LIBRARIES.parents[2] / 'etc']  # il2cpp copies Mono's etc folder

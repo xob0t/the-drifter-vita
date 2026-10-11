@@ -26,8 +26,8 @@ CHUNK_FREQUENCY = 2
 CHUNK_CHANNELS = 1
 
 
-def align(n, to=ALIGN):
-    return -(-n // to) * to
+def align(n):
+    return -(-n // ALIGN) * ALIGN
 
 
 def bank(name, rate, channels, samples, data, codec=CODEC_HEVAG):

@@ -170,7 +170,7 @@ def fill_programs(out, stages, records, requirements_of):
 
 def build(source, options, registry, pool, project):
     """The Windows release Shader tree for a parsed ShaderSource."""
-    shader_dir = source.path.parent if source.path else project
+    shader_dir = source.path.parent
     records, subshaders = {}, []
     snippets = [p.program for sub in source.subshaders for p in sub.passes if p.program is not None]
     order = {id(p): i for i, p in enumerate(sorted(snippets, key=lambda p: p.line))}

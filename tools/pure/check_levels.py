@@ -221,7 +221,7 @@ def main():
                 except Exception as error:
                     totals[(cid, 'model does not read', script[2], str(error)[:60])] += 1
                     continue
-            mine, missing = convert.convert(cid, o.doc.fields, ctx, tree)
+            mine, _ = convert.convert(cid, o.doc.fields, ctx, tree)
             if cid in classes.FIXUPS:
                 classes.FIXUPS[cid](mine, o.doc, project, sc)
             diffs = []
@@ -231,7 +231,7 @@ def main():
                 key = (cid if cid != 114 else (114, script_name(o.doc.fields['m_Script'])[1]), d[0].split('[')[0])
                 totals[('field', key)] += 1
                 if len(examples[key]) < args.show:
-                    examples[key].append((index, s, d[1], d[2], missing))
+                    examples[key].append((index, s, d[1], d[2]))
     for k, v in sorted((k, v) for k, v in totals.items() if k[0] != 'field'):
         print(k, v)
     print('fields that differ:')

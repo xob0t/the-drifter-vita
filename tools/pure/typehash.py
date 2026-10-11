@@ -56,22 +56,22 @@ class HashBuilder:
             }
         )
 
-    def value(self, m, level, name, meta=0, element=False):
+    def value(self, m, level, name, element=False):
         k = m['k']
         if k == 'prim':
             pad = m['size'] < 4 and not element  # array elements pack; the array aligns after them
-            self.add(level, PRIM[m['t']], name, m['size'], meta | (ALIGN if pad else 0))
+            self.add(level, PRIM[m['t']], name, m['size'], ALIGN if pad else 0)
         elif k == 'bitfield':
-            self.add(level, 'BitField', name, 4, meta, 2)
+            self.add(level, 'BitField', name, 4, 0, 2)
             self.add(level + 1, 'unsigned int', 'm_Bits', 4)
         elif k == 'string':
-            self.add(level, 'string', name, -1, meta)
+            self.add(level, 'string', name, -1)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN)
             self.add(level + 2, 'int', 'size', 4)
             self.add(level + 2, 'char', 'data', 1)
         elif k == 'curve':
             # AnimationCurve<float> as the editor serializes it (Keyframe v3 keeps tangentMode)
-            self.add(level, 'AnimationCurve', name, -1, meta, 2)
+            self.add(level, 'AnimationCurve', name, -1, 0, 2)
             self.add(level + 1, 'vector', 'm_Curve', -1)
             self.add(level + 2, 'Array', 'Array', -1, ALIGN)
             self.add(level + 3, 'int', 'size', 4)
@@ -90,7 +90,7 @@ class HashBuilder:
             for n in ('m_PreInfinity', 'm_PostInfinity', 'm_RotationOrder'):
                 self.add(level + 1, 'int', n, 4)
         elif k == 'pptr':
-            self.add(level, f'PPtr<${m["t"]}>', name, 12, meta)
+            self.add(level, f'PPtr<${m["t"]}>', name, 12)
             self.add(level + 1, 'int', 'm_FileID', 4)
             self.add(level + 1, 'SInt64', 'm_PathID', 8)
         elif k == 'array':
@@ -99,7 +99,7 @@ class HashBuilder:
             user = e['k'] == 'struct' and not (e['t'] in ENGINE and e.get('full', '').startswith('UnityEngine.'))
             # a C# char[] marks the vector itself aligned too (byte[] and others do not)
             char = e['k'] == 'prim' and e['t'] == 'char'
-            self.add(level, e['t'] if user else 'vector', name, -1, meta | (ALIGN if char else 0))
+            self.add(level, e['t'] if user else 'vector', name, -1, ALIGN if char else 0)
             # the element run is padded to 4 bytes when it can end unaligned
             unaligned = e['k'] in ('string', 'prim', 'bitfield') or (e['k'] == 'struct' and not user)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN if unaligned else 0)
@@ -107,12 +107,12 @@ class HashBuilder:
             self.value(e, level + 2, 'data', element=True)
         elif k == 'struct' and m['t'] in ENGINE and m.get('full', '').startswith('UnityEngine.'):
             t, size, ver, fields = ENGINE[m['t']]
-            self.add(level, t, name, size, meta, ver)
+            self.add(level, t, name, size, 0, ver)
             for ft, fn, fs in fields:
                 self.add(level + 1, ft, fn, fs)
         elif k == 'struct':
             start = len(self.out)
-            self.add(level, m['t'], name, -1, meta)
+            self.add(level, m['t'], name, -1)
             self.fields(m['fields'], level + 1)
             # A class whose members all have a fixed size gets that size, like Unity's own structs
             kids = [n for n in self.out[start + 1 :] if n['m_Level'] == level + 1]

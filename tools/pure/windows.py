@@ -62,8 +62,8 @@ BOOT_CONFIG = (
 DATA_PREFIXES = ('level', 'sharedassets', 'resources.', 'globalgamemanagers')
 
 
-def player_settings(project=PROJECT):
-    return unityyaml.meta(project / 'ProjectSettings' / 'ProjectSettings.asset')['PlayerSettings']
+def player_settings():
+    return unityyaml.meta(PROJECT / 'ProjectSettings' / 'ProjectSettings.asset')['PlayerSettings']
 
 
 def is_managed(path):
@@ -92,11 +92,11 @@ def plugin_enabled(dll):
     return enabled.get(('Any', ''), True)
 
 
-def project_plugins(project=PROJECT):
+def project_plugins():
     """(managed, native) plugin DLLs of the project that a Win64 build takes."""
     managed, native = [], []
-    for dll in sorted((project / 'Assets').rglob('*.dll')):
-        if 'Editor' in dll.relative_to(project / 'Assets').parts or not plugin_enabled(dll):
+    for dll in sorted((PROJECT / 'Assets').rglob('*.dll')):
+        if 'Editor' in dll.relative_to(PROJECT / 'Assets').parts or not plugin_enabled(dll):
             continue
         (managed if is_managed(dll) else native).append(dll)
     return managed, native
@@ -116,10 +116,9 @@ def class_libraries(roots):
     return sorted(found.values())
 
 
-def steam_app_id(game=paths.common.DEFAULT_GAME):
+def steam_app_id():
     """The Steam app ID from the library manifest that owns the game folder (as the pipeline)."""
-    if game is None:
-        return None
+    game = paths.common.DEFAULT_GAME
     for manifest in Path(game).parent.parent.glob('appmanifest_*.acf'):
         text = manifest.read_text(encoding='utf-8', errors='replace')
         if re.search(rf'"installdir"\s+"{re.escape(Path(game).name)}"', text, re.I):
@@ -132,18 +131,18 @@ def copy(src, dst):
     shutil.copyfile(src, dst)
 
 
-def player(out, data, name=NAME, project=PROJECT):
+def player(out, data):
     """Writes the player folder; `data` is the folder the serialized files come from."""
     out.mkdir(parents=True, exist_ok=True)
-    target = out / f'{name}_Data'
-    copy(VARIATION / 'WindowsPlayer.exe', out / f'{name}.exe')
+    target = out / f'{NAME}_Data'
+    copy(VARIATION / 'WindowsPlayer.exe', out / f'{NAME}.exe')
     for f in ('UnityPlayer.dll', 'UnityCrashHandler64.exe'):
         copy(VARIATION / f, out / f)
     shutil.copytree(VARIATION / 'MonoBleedingEdge', out / 'MonoBleedingEdge', dirs_exist_ok=True)
 
     managed_dir = target / 'Managed'
     engine = [p for p in sorted((VARIATION / 'Data' / 'Managed').iterdir()) if p.suffix != '.mdb']
-    managed, native = project_plugins(project)
+    managed, native = project_plugins()
     extensions = [EXTENSIONS / e for e in EXTENSION_DLLS]
     roots = [p for p in engine if p.suffix == '.dll'] + managed + extensions
     for p in [*engine, *managed, *extensions, *class_libraries(roots)]:
@@ -153,7 +152,7 @@ def player(out, data, name=NAME, project=PROJECT):
     resources = 'unity default resources'
     copy(VARIATION / 'Data' / 'Resources' / resources, target / 'Resources' / resources)
 
-    settings = player_settings(project)
+    settings = player_settings()
     (target / 'app.info').write_bytes(f'{settings["companyName"]}\n{settings["productName"]}'.encode())
     (target / 'boot.config').write_text(BOOT_CONFIG, encoding='ascii', newline='\n')
     app_id = steam_app_id()
@@ -168,8 +167,9 @@ def player(out, data, name=NAME, project=PROJECT):
     copy(data / 'Resources' / 'unity_builtin_extra', target / 'Resources' / 'unity_builtin_extra')
 
 
-def compare(out, ref=REFERENCE):
+def compare(out):
     """(identical, differing, missing, extra) relative paths against the reference build."""
+    ref = REFERENCE
     skip = {f'{NAME}.exe.messages.txt'}  # the editor's build log
     mine = {p.relative_to(out).as_posix() for p in out.rglob('*') if p.is_file()}
     theirs = {p.relative_to(ref).as_posix() for p in ref.rglob('*') if p.is_file()} - skip
@@ -181,12 +181,13 @@ def compare(out, ref=REFERENCE):
     return same, differ, sorted(theirs - mine), sorted(mine - theirs)
 
 
-def run(out, seconds, name=NAME, log=paths.WORK / 'windows' / 'Player.log'):
+def run(out, seconds):
     """Starts the player windowed for `seconds`: (exit code or None if it was still running,
     the log, its error lines)."""
+    log = paths.WORK / 'windows' / 'Player.log'
     log.parent.mkdir(parents=True, exist_ok=True)
     log.unlink(missing_ok=True)
-    proc = subprocess.Popen([str(out / f'{name}.exe'), '-screen-fullscreen', '0', '-logFile', str(log)])
+    proc = subprocess.Popen([str(out / f'{NAME}.exe'), '-screen-fullscreen', '0', '-logFile', str(log)])
     try:
         exited = proc.wait(seconds)
     except subprocess.TimeoutExpired:

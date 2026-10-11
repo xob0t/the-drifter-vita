@@ -21,14 +21,12 @@ GENERICINST = 0x15
 @dataclass
 class Method:
     name: str
-    flags: int
     attributes: list = field(default_factory=list)  # [(attribute type full name, value blob)]
 
 
 @dataclass
 class Type:
     assembly: str  # the assembly's name, e.g. 'Recovered.Drifter'
-    index: int  # TypeDef row: metadata order
     namespace: str
     name: str
     flags: int
@@ -89,10 +87,8 @@ def joined(ns, name):
 class Assembly:
     def __init__(self, path):
         self.path = path
-        self.file_name = path.name
         self.tables = t = dnfile.dnPE(str(path)).net.mdtables
         self.name = str(t.Assembly[0].Name) if t.Assembly else path.stem
-        self.references = [str(r.Name) for r in t.AssemblyRef or []]
 
     def typedef_name(self, row):
         return None, joined(str(row.TypeNamespace or ''), str(row.TypeName))
@@ -136,11 +132,11 @@ class Assembly:
         methods = list(t.MethodDef or [])
         out, owner = [], {}
         for i, r in enumerate(rows, 1):
-            ty = Type(self.name, i, str(r.TypeNamespace or ''), str(r.TypeName), r.struct.Flags,
+            ty = Type(self.name, str(r.TypeNamespace or ''), str(r.TypeName), r.struct.Flags,
                       self.type_ref(r.Extends), i in nested, i in generic)  # fmt: skip
             for m in r.MethodList or []:
                 row = methods[m.row_index - 1]
-                method = Method(str(row.Name), row.struct.Flags)
+                method = Method(str(row.Name))
                 ty.methods.append(method)
                 owner[m.row_index] = (ty, method)
             out.append(ty)

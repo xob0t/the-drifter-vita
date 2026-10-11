@@ -192,7 +192,7 @@ def importer(asset):
 
 @cache
 def meta(path):
-    # Asset.meta cannot open the str path AssetDB stores
+    # unityyaml.meta cannot open the str path AssetDB stores
     return unityyaml.meta(Path(path))
 
 

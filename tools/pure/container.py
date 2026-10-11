@@ -3,8 +3,8 @@ Standalone reader/writer for Unity SerializedFile containers (.assets / levelN /
 globalgamemanagers), for Unity 2018.2.19f1 (serialized version 17), PSP2 target,
 WITHOUT type trees. Pure Python 3, no UnityPy.
 
-    python serialized_container.py <file> [...]      # parse -> rebuild -> compare bytes
-    from serialized_container import parse_serialized, write_serialized, HeaderInfo
+    python container.py <file> [...]      # parse -> rebuild -> compare bytes
+    from container import parse_serialized, write_serialized, HeaderInfo
 
 FORMAT RULES (derived from the Media/ answer key; all 127 version-17 files in
 builds/drifter-2018.2.19f1-vita/Media satisfy them, and the rebuild is byte-identical)

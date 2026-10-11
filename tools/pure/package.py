@@ -38,8 +38,8 @@ BOOT_CONFIG = (
 SDK_MODULES = ('libc.suprx', 'libfios2.suprx')
 
 
-def player_settings(project=paths.PROJECT):
-    return unityyaml.meta(project / 'ProjectSettings' / 'ProjectSettings.asset')['PlayerSettings']
+def player_settings():
+    return unityyaml.meta(paths.PROJECT / 'ProjectSettings' / 'ProjectSettings.asset')['PlayerSettings']
 
 
 def sfo(entries):
@@ -90,8 +90,9 @@ def param_sfo(settings):
     )
 
 
-def vita_folder(out, name='drifter-2018.2'):
+def vita_folder(out):
     """Copies and writes everything but the serialized data and the code module."""
+    name = 'drifter-2018.2'
     player = paths.PSP2_PLAYER
     settings = player_settings()
     out.mkdir(parents=True, exist_ok=True)

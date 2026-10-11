@@ -141,6 +141,6 @@ def batching(project):
     return True
 
 
-def managers(layout, placement, entries, project, class_hashes=None):
+def managers(layout, placement, entries, project):
     """[(path ID, class ID, release dict)] of the Windows globalgamemanagers, in path ID order."""
-    return Managers(layout, placement, entries, project, class_hashes).all()
+    return Managers(layout, placement, entries, project).all()

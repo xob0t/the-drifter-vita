@@ -15,7 +15,7 @@ and shaders. A class whose fileID collides with an earlier one in its DLL gets n
 
     entries = monoscripts(layout)                   # [MonoScript] in path ID order; .fields is the object
     ids = monoscript_ids(entries)                   # {(assembly, namespace, class): path ID} for AssetContext
-    register(placement, layout, entries)            # placement.find resolves {fileID, DLL guid} to them
+    register(placement, entries)                    # placement.find resolves {fileID, DLL guid} to them
     objects = managers(layout, placement, entries)  # [(path ID, class ID, dict)] of globalgamemanagers
 
 PreloadData is in preload.py, the object reference graph it and ResourceManager use in references.py.
@@ -205,7 +205,7 @@ def native_fields(node):
     return node
 
 
-def monoscripts(layout=None, project=PROJECT, start=None):
+def monoscripts(layout, project=PROJECT):
     """Every MonoScript of globalgamemanagers.assets in path ID order, with its release fields."""
     u = universe(project)
     found = []
@@ -223,8 +223,7 @@ def monoscripts(layout=None, project=PROJECT, start=None):
             seen[fid] = MonoScript(0, dll, ty, {own, fid}, (fid, dll.guid))
             found.append(seen[fid])
     found.sort(key=lambda s: s.order_key)
-    if start is None:
-        start = first_path_id(GGA) + (len(layout.objects(GGA)) if layout is not None else 0)
+    start = first_path_id(GGA) + len(layout.objects(GGA))
     concrete = [s for s in found if not (s.type.abstract or s.type.generic)]
     models = typemodel.models(managed_folder(project), [(s.assembly_name, s.type.full_name) for s in concrete])
     for i, s in enumerate(found):
@@ -255,10 +254,9 @@ def monoscript_ids(entries):
     return out
 
 
-def register(placement, layout, entries):
+def register(placement, entries):
     """Make placement.find resolve m_Script references ({fileID, guid of the DLL}) to the
     MonoScripts."""
-    del layout
     for s in entries:
         for fid in s.file_ids:
             placement.where.setdefault((s.guid, fid), (GGA, s.path_id))
@@ -324,9 +322,8 @@ def settings(name, project=PROJECT):
 
 
 class Managers:
-    def __init__(self, layout, placement, entries, project=PROJECT, class_hashes=None):
+    def __init__(self, layout, placement, entries, project=PROJECT):
         self.layout, self.placement, self.entries, self.project = layout, placement, entries, project
-        self.class_hashes = class_hashes or {}
 
     @functools.cached_property
     def builtin_extra(self):
@@ -483,7 +480,7 @@ class Managers:
             'hasClusterRendering': True,
             'm_Version': TARGET,
             'm_AuthToken': '',
-            'runtimeClassHashes': [(cid, hash128(self.class_hashes.get(cid) or h)) for cid, h in runtime_classes()],
+            'runtimeClassHashes': [(cid, hash128(h)) for cid, h in runtime_classes()],
             # a std::map keyed by Hash128, which compares as two little-endian 64-bit halves
             'scriptHashes': [
                 (hash128(k), hash128(script_hashes[k]))
@@ -649,6 +646,6 @@ def resource_dependencies(layout, placement):
     return out
 
 
-def managers(layout, placement, entries, project=PROJECT, class_hashes=None):
+def managers(layout, placement, entries):
     """[(path ID, class ID, release dict)] of globalgamemanagers, in path ID order."""
-    return Managers(layout, placement, entries, project, class_hashes).all()
+    return Managers(layout, placement, entries).all()

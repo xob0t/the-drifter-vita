@@ -130,28 +130,28 @@ class ReleaseBuilder:
         for c in node.m_Children:
             self.copy(c, level + 1)
 
-    def value(self, m, level, name, meta=0, element=False):
+    def value(self, m, level, name, element=False):
         k = m['k']
         if k == 'prim':
             # array elements pack tightly; the array as a whole is aligned after its last element
             pad = m['t'] in SUB4 and m['size'] < 4 and not element
             # A C# char is two bytes; Unity's type name 'char' is the one-byte string element.
             kind = 'UInt16' if m['t'] == 'char' else m['t']
-            self.add(level, kind, name, m['size'], meta | (ALIGN if pad else 0))
+            self.add(level, kind, name, m['size'], ALIGN if pad else 0)
         elif k == 'string':
-            self.add(level, 'string', name, -1, meta | 0x8000)
+            self.add(level, 'string', name, -1, 0x8000)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN | 0x8000)
             self.add(level + 2, 'int', 'size', 4)
             self.add(level + 2, 'char', 'data', 1)
         elif k == 'pptr':
-            self.add(level, f'PPtr<{m["t"]}>', name, 12, meta)
+            self.add(level, f'PPtr<{m["t"]}>', name, 12)
             self.add(level + 1, 'int', 'm_FileID', 4)
             self.add(level + 1, 'SInt64', 'm_PathID', 8)
         elif k == 'bitfield':
-            self.add(level, 'BitField', name, 4, meta, 2)
+            self.add(level, 'BitField', name, 4, 0, 2)
             self.add(level + 1, 'unsigned int', 'm_Bits', 4)
         elif k == 'curve':
-            self.add(level, 'AnimationCurve', name, -1, meta, 2)
+            self.add(level, 'AnimationCurve', name, -1, 0, 2)
             self.add(level + 1, 'vector', 'm_Curve', -1, 0x8000)
             self.add(level + 2, 'Array', 'Array', -1, ALIGN | 0x8000)
             self.add(level + 3, 'int', 'size', 4)
@@ -162,12 +162,12 @@ class ReleaseBuilder:
             for n in ('m_PreInfinity', 'm_PostInfinity', 'm_RotationOrder'):
                 self.add(level + 1, 'int', n, 4)
         elif k == 'array':
-            self.add(level, 'vector', name, -1, meta | 0x8000)
+            self.add(level, 'vector', name, -1, 0x8000)
             self.add(level + 1, 'Array', 'Array', -1, ALIGN | 0x8000)
             self.add(level + 2, 'int', 'size', 4)
             self.value(m['e'], level + 2, 'data', element=True)
         elif k == 'struct':
-            self.add(level, m['t'], name, -1, meta)
+            self.add(level, m['t'], name, -1)
             self.fields(m['fields'], level + 1)
         else:
             raise ValueError(f'unsupported field {name}: {m}')

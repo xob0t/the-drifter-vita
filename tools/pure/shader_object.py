@@ -215,7 +215,7 @@ class ParseError(ValueError):
 
 
 class Parser:
-    def __init__(self, text, path=None):
+    def __init__(self, text, path):
         self.text = text
         self.toks = list(tokens(text))
         self.i = 0
@@ -546,7 +546,7 @@ class Parser:
             raise ParseError(f'{self.path}:{line}: unknown ShaderLab command {t.value!r}')
 
 
-def parse(text, path=None):
+def parse(text, path):
     return Parser(text, path).shader()
 
 
@@ -734,7 +734,6 @@ def directive_sets(name, args):
 class Snippet:
     """One program block with what its pragmas say."""
 
-    lang: str
     target: str
     vertex: str
     fragment: str
@@ -770,7 +769,6 @@ def snippet_info(program, includes):
     stages = ('vertex', 'fragment', 'geometry', 'hull', 'domain')
     mask = sum(2 << i for i, stage in enumerate(stages) if stage in info) or 6
     return Snippet(
-        program.lang,
         target,
         info.get('vertex', [None])[0],
         info.get('fragment', [None])[0],
@@ -871,7 +869,7 @@ def compile_program(text, shader_dir, stage, entry, target, keywords):
     # psp2cgc now and then fails a program it compiles fine on the next try when many run at
     # once; a failure only counts when it repeats.
     for _ in range(3):
-        result, log = psp2cgc.compile(text, shader_dir, stage, entry, target, sorted(keywords), sdb=True)
+        result, log = psp2cgc.compile(text, shader_dir, stage, entry, target, sorted(keywords))
         if result is not None:
             break
     # When psp2cgc crashes at -O3, the editor's PS Vita compiler steps the optimization down
@@ -1073,21 +1071,9 @@ class BuildOptions:
     dependency: object = None  # shader name -> PPtr dict, for Fallback/Dependency/UsePass
 
 
-def build(source, options=None, registry=None, pool=None):
+def build(source, options, registry, pool):
     """The release Shader tree for a parsed ShaderSource (see parse())."""
-    options = options or BuildOptions()
-    registry = registry if registry is not None else KeywordRegistry()
-    own_pool = pool is None
-    pool = pool or ThreadPoolExecutor(16)
-    try:
-        return _build(source, options, registry, pool)
-    finally:
-        if own_pool:
-            pool.shutdown()
-
-
-def _build(source, options, registry, pool):
-    shader_dir = source.path.parent if source.path else PROJECT
+    shader_dir = source.path.parent
     records = []
     subshaders = []
     snippets = [p.program for sub in source.subshaders for p in sub.passes if p.program is not None]
@@ -1280,9 +1266,9 @@ class ProjectShaders:
                 key = (ref.get('guid', g), int(ref.get('fileID', 0)))
                 keywords = (doc.fields.get('m_ShaderKeywords') or '').split()
                 self.materials.setdefault(key, []).append(frozenset(keywords))
-        for fid, (_cid, shader) in _builtin_materials().items():
-            if fid in layout.builtin_file and shader is not None:
-                self.materials.setdefault((BUILTIN_EXTRA, shader[0]), []).append(frozenset(shader[1]))
+        for fid, (shader, keywords) in _builtin_materials().items():
+            if fid in layout.builtin_file:
+                self.materials.setdefault((BUILTIN_EXTRA, shader), []).append(frozenset(keywords))
         self.names = {}
 
     def source(self, guid, file_id):
@@ -1343,7 +1329,7 @@ class ProjectShaders:
 
 @cache
 def _builtin_materials():
-    """fileID -> (class ID, (shader fileID, keywords) or None) for the editor's built-in materials."""
+    """fileID -> (shader fileID, keywords) for the editor's built-in materials."""
     import UnityPy
 
     env = UnityPy.load(str(EDITOR_DATA / 'Resources' / 'unity_builtin_extra'))
@@ -1351,7 +1337,7 @@ def _builtin_materials():
     for pid, o in next(iter(env.files.values())).objects.items():
         if o.type.name == 'Material':
             t = o.read_typetree()
-            out[pid] = (21, (t['m_Shader']['m_PathID'], tuple(t['m_ShaderKeywords'].split())))
+            out[pid] = (t['m_Shader']['m_PathID'], tuple(t['m_ShaderKeywords'].split()))
     return out
 
 

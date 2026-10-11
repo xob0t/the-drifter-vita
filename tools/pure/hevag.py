@@ -115,7 +115,7 @@ def _segments(streams, warmup):
     return out
 
 
-def encode(clips, candidates=CANDIDATES):
+def encode(clips):
     """HEVAG data of each clip: clips are (channels, frames * 28) arrays of 16-bit samples (see
     stretch()); the result is bytes, frame by frame, the channels of each frame side by side."""
     streams = [ch for c in clips for ch in c]
@@ -130,7 +130,7 @@ def encode(clips, candidates=CANDIDATES):
             x[lane, : frames * FRAME] = streams[s][start * FRAME : (start + frames) * FRAME]
             if start:
                 history[lane] = streams[s][start * FRAME - 4 : start * FRAME][::-1]
-        out = _encode_lanes(x.reshape(len(batch), steps, FRAME), history, candidates)
+        out = _encode_lanes(x.reshape(len(batch), steps, FRAME), history, CANDIDATES)
         for lane, (s, start, frames, _) in enumerate(batch):
             codes[s][start : start + frames] = out[lane, :frames]
     result, k = [], 0

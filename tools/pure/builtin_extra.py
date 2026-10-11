@@ -163,12 +163,12 @@ def stage_variants(snippet, stage, registry, strip):
 
 
 class Builder:
-    def __init__(self, layout, project=PROJECT, registry=None, pool=None):
+    def __init__(self, layout, project=PROJECT, registry=None):
         self.layout = layout
         self.fog = so.fog_modes(project, [s['path'] for s in layout.scenes])
         self.lightmaps = lightmap_keywords_kept(layout, project)
         self.registry = registry if registry is not None else so.KeywordRegistry()
-        self.pool = pool or ThreadPoolExecutor(16)
+        self.pool = ThreadPoolExecutor(16)
 
     def stripper(self, snippet):
         base = snippet['m_BaseRequirements']
@@ -276,9 +276,9 @@ def project_trees(build):
     return out
 
 
-def objects(build, builder=None):
+def objects(build):
     """[(path ID, serialized bytes)] in write order; a path ID can repeat (the last one wins)."""
-    builder = builder or Builder(build.layout)
+    builder = Builder(build.layout)
     out = [(fid, serialize(builder.shader(fid))) for fid in builtin_shader_ids(build.layout)]
     out += [(PROJECT_SHADER, serialize(tree)) for tree in project_trees(build)]
     return out

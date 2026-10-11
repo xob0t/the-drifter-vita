@@ -31,10 +31,6 @@ def release_tree(class_id):
     return get_typetree_node(class_id, VERSION)
 
 
-class Missing(dict):
-    """Fields the YAML lacked, by path: the class converter or a default has to supply them."""
-
-
 def number(text, kind):
     if isinstance(text, (int, float)):
         return text

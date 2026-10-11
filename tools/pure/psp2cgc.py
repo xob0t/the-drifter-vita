@@ -42,9 +42,9 @@ AVAILABLE = [
 ]
 
 
-def compile(text, shader_dir, stage, entry, target, keywords, sdb=False):
-    """(gxp, log), or (None, log) when it fails. With sdb, gxp is (gxp, the SDB's XML text): the SDB
-    holds the declared types and semantics the GXP leaves out."""
+def compile(text, shader_dir, stage, entry, target, keywords):
+    """((gxp, the SDB's XML text), log), or (None, log) when it fails: the SDB holds the declared
+    types and semantics the GXP leaves out."""
     vertex = stage == 'vp'
     defines = (
         TARGET[target]
@@ -69,11 +69,10 @@ def compile(text, shader_dir, stage, entry, target, keywords, sdb=False):
         f'-I{PSP2_PLAYER / "CgBatchPlugins64" / "include"}',
     ]
     command += ['-profile', 'sce_vp_psp2' if vertex else 'sce_fp_psp2', '-entry', entry, '-o', str(out)]
-    if sdb:
-        command += ['-xmlsdb', str(sdb_file)]
+    command += ['-xmlsdb', str(sdb_file)]
     result = subprocess.run(command, capture_output=True, text=True, cwd=PROJECT)
     data = out.read_bytes() if result.returncode == 0 and out.exists() else None
-    if sdb and data is not None:
+    if data is not None:
         data = (data, sdb_file.read_text(encoding='utf-8'))
     for path in (src, out, sdb_file):
         path.unlink(missing_ok=True)

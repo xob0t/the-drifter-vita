@@ -21,12 +21,6 @@ class SceneObject:
     doc: unityyaml.Doc
 
 
-def objects(path):
-    docs = [d for d in unityyaml.load(path) if d.class_id not in EDITOR_ONLY and not d.stripped]
-    order = sorted(docs, key=lambda d: (d.class_id == MONOBEHAVIOUR, d.class_id, d.file_id))
-    return [SceneObject(i + 1, d) for i, d in enumerate(order)]
-
-
 def hierarchy_paths(docs):
     """fileID -> 'Root/Child#1/...' for GameObjects, through their Transforms; #n numbers
     siblings that share a name, in their parent's child order."""

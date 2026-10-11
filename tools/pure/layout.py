@@ -64,8 +64,8 @@ def rank(class_id):
 
 
 class Layout:
-    def __init__(self, db=None, project=PROJECT):
-        self.db = db or AssetDB(project)
+    def __init__(self, project=PROJECT):
+        self.db = AssetDB(project)
         self.scenes = build_scenes(project)
         self.scene_refs = []
         for s in self.scenes:
@@ -123,8 +123,6 @@ class Layout:
                 place(fid, f)
 
     def scene_object_refs(self, project):
-        from assets import REF
-
         for s in self.scenes:
             text = (project / s['path']).read_text(encoding='utf-8', errors='replace')
             yield {(g, int(fid)) for fid, g in REF.findall(text)}

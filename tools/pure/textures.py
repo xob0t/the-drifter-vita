@@ -46,9 +46,9 @@ class Stream:
     """A .resS file being written (data: the bytearray build.py keeps in build.streams[name]).
     Textures append their image data in path ID order."""
 
-    def __init__(self, name, data=None):
+    def __init__(self, name, data):
         self.name = name
-        self.data = bytearray() if data is None else data
+        self.data = data
 
     def add(self, data):
         offset = len(self.data)
@@ -62,7 +62,7 @@ def importer(asset):
 
 @cache
 def meta(path):
-    # Asset.meta cannot open the str path AssetDB stores
+    # unityyaml.meta cannot open the str path AssetDB stores
     return unityyaml.meta(Path(path))
 
 

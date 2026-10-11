@@ -27,16 +27,6 @@ public static class Program
         managedDir = args[0];
         resolver = new DefaultAssemblyResolver();
         resolver.AddSearchDirectory(managedDir);
-        if (args.Length > 3 && args[3] == "dump")
-        {
-            // Debug aid: list every field of one type with its attributes and flags.
-            var parts = args[1].Split('|');
-            var dtd = FindType(parts[0], parts[1]);
-            foreach (var f in dtd.Fields)
-                Console.WriteLine($"{f.Name} : {f.FieldType.FullName} pub={f.IsPublic} static={f.IsStatic} nser={f.IsNotSerialized} attrs=[{string.Join(",", f.CustomAttributes.Select(a => a.AttributeType.FullName))}]");
-            Console.WriteLine($"base: {dtd.BaseType?.FullName}");
-            return 0;
-        }
         var reqs = JsonSerializer.Deserialize<List<Req>>(File.ReadAllText(args[1]));
         var outList = new List<Dictionary<string, object>>();
         foreach (var r in reqs)

@@ -41,7 +41,7 @@ F = np.float32
 FLT_MAX = float(np.finfo(np.float32).max)
 INF = float('inf')
 
-STREAMED, DENSE, CONSTANT = range(3)
+STREAMED, CONSTANT = range(2)
 # Transform properties the engine binds itself: (YAML array, attribute, customType, components).
 TRANSFORM_CURVES = (
     ('m_PositionCurves', 1, 0, 'xyz'),

@@ -191,7 +191,7 @@ def main():
     shared = sorted(p.name for p in paths.REFERENCE_MEDIA.glob('sharedassets*.assets'))
     placement = Placement(layout, [*shared, 'resources.assets', managers.GGA])
     entries = managers.monoscripts(layout)
-    managers.register(placement, layout, entries)
+    managers.register(placement, entries)
     if not args.only_preload:
         check_monoscripts(entries, args.show)
         check_managers(managers.managers(layout, placement, entries), args.show)

@@ -57,7 +57,7 @@ def settings(meta):
 
 
 def meta(asset):
-    # Asset.meta reads meta_path, which AssetDB stores as a str that unityyaml.meta can't open.
+    # AssetDB stores meta_path as a str, which unityyaml.meta can't open.
     return unityyaml.meta(Path(asset.meta_path))
 
 
@@ -107,7 +107,7 @@ def clip_name(asset):
     return asset.path.rsplit('/', 1)[-1].rsplit('.', 1)[0]
 
 
-def _make(jobs, candidates=hevag.CANDIDATES):
+def _make(jobs):
     """[(name, source path, importer settings)] -> [(fields, bank)]; many clips encode together."""
     shapes, stretched = [], []
     for name, path, importer in jobs:
@@ -115,7 +115,7 @@ def _make(jobs, candidates=hevag.CANDIDATES):
         frames = hevag.frames_for(pcm.shape[1])
         shapes.append((name, importer, pcm.shape[0], rate, pcm.shape[1], frames))
         stretched.append(hevag.stretch(pcm, frames))
-    data = hevag.encode(stretched, candidates)
+    data = hevag.encode(stretched)
     out = []
     for (name, importer, channels, rate, samples, frames), encoded in zip(shapes, data, strict=True):
         out.append(
@@ -127,18 +127,13 @@ def _make(jobs, candidates=hevag.CANDIDATES):
     return out
 
 
-def clip(asset, project=PROJECT):
-    """(AudioClip fields, FSB5 bank) of one audio asset."""
-    return _make([(clip_name(asset), project / asset.path, settings(meta(asset)))])[0]
-
-
-def build(assets, workers=None, project=PROJECT, progress=None):
+def build(assets, workers=None):
     """[(fields, bank)] for the audio assets, in their order, encoded on all cores."""
     import soundfile
 
     jobs, sizes = [], []
     for a in assets:
-        path = project / a.path
+        path = PROJECT / a.path
         info = soundfile.info(str(path))
         jobs.append((clip_name(a), path, settings(meta(a))))
         sizes.append(hevag.frames_for(info.frames) * info.channels)
@@ -156,11 +151,9 @@ def build(assets, workers=None, project=PROJECT, progress=None):
         return _make(jobs)
     with ProcessPoolExecutor(workers or os.cpu_count()) as pool:
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
-        for done, (future, g) in enumerate(futures.items()):
+        for future, g in futures.items():
             for i, result in zip(g, future.result(), strict=True):
                 out[i] = result
-            if progress:
-                progress(done + 1, len(groups))
     return out
 
 

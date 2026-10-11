@@ -36,7 +36,7 @@ def program_args(path, text, programs, includes, record):
 
 def check(job):
     name, record, args = job
-    result, log = psp2cgc.compile(*args, sdb=True)
+    result, log = psp2cgc.compile(*args)
     if result is None:
         return name, 'compile failed', log[-300:]
     gxp, sdb = result

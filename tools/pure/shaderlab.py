@@ -1,7 +1,7 @@
 """Find the program blocks in a ShaderLab file and rebuild the text Unity 2018.2 hands to psp2cgc for each."""
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 KW = re.compile(r'\b(CGPROGRAM|CGINCLUDE|HLSLPROGRAM|HLSLINCLUDE|GLSLPROGRAM|SubShader|Pass|UsePass|GrabPass)\b')
 
@@ -13,7 +13,6 @@ class Program:
     passi: int
     line: int  # line of the CGPROGRAM keyword (1-based)
     body: str  # text after the keyword up to ENDCG
-    pragmas: dict = field(default_factory=dict)
 
 
 @dataclass

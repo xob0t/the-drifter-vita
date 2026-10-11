@@ -25,12 +25,12 @@ def target(p, semantic):
     return SEM_TARGET.get(p['sem'], SEM_CHANNEL[p['sem']])
 
 
-def derive(g, semantics=None, dims=None):
+def derive(g, semantics, dims=None):
     """dims: sampler name -> texture dimension (sampler_dims(sdb)); 2D when not given."""
     gp = params(g)
     attrs = [p for p in gp if p['cat'] == 'attr']
     # in the GXP's attribute order (vertex, tangent, normal, ... as the program declares them)
-    chans = list(dict.fromkeys((channel(p), target(p, (semantics or {}).get(p['name'], 'TEXCOORD'))) for p in attrs))
+    chans = list(dict.fromkeys((channel(p), target(p, semantics.get(p['name'], 'TEXCOORD'))) for p in attrs))
     src_map = sum(1 << c for c, _ in chans)
     vectors, matrices, textures, uniforms = [], [], [], []
     for p in reversed(gp):
@@ -64,9 +64,9 @@ def derive(g, semantics=None, dims=None):
     }
 
 
-def lstr(s, pad=True):
+def lstr(s):
     b = s.encode()
-    return struct.pack('<I', len(b)) + b + b'\0' * ((-len(b)) % 4 if pad else 0)
+    return struct.pack('<I', len(b)) + b + b'\0' * ((-len(b)) % 4)
 
 
 def code_bytes(g, b):

@@ -11,7 +11,6 @@ import pickle
 import re
 from dataclasses import dataclass, field
 from functools import cached_property
-from pathlib import Path
 
 import unityyaml
 from paths import PROJECT, WORK
@@ -55,10 +54,6 @@ class Asset:
         if not self.is_yaml:
             return {}
         return {d.file_id: d for d in unityyaml.load(PROJECT / self.path) if not d.stripped}
-
-    @cached_property
-    def meta(self):
-        return unityyaml.meta(Path(self.meta_path))
 
     def stripped(self):
         """A copy without the parsed documents, for the index cache."""

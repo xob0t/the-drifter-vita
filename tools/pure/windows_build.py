@@ -19,7 +19,6 @@ Everything else (scenes, prefabs, YAML assets) goes through convert.py as on the
 import builtin_copies
 
 FONT_EXTENSIONS = {'.ttf', '.otf'}
-BUILD_TARGET = 'Standalone'  # the TextureImporter platformSettings entry of a Windows build
 
 
 def resS(build, file_name):

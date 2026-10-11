@@ -185,7 +185,7 @@ def library():
     return lib
 
 
-def d3dcompile(text, defines, entry, profile, include_dirs, flags=COMPILE_FLAGS, name='shader'):
+def d3dcompile(text, defines, entry, profile, include_dirs):
     """(DXBC with reflection, messages); the DXBC is None when the compile fails."""
     macros = (Macro * (len(defines) + 1))()
     for i, d in enumerate(defines):
@@ -195,8 +195,8 @@ def d3dcompile(text, defines, entry, profile, include_dirs, flags=COMPILE_FLAGS,
     src = text.encode()
     includes = Includes(include_dirs)
     hr = library().D3DCompile(
-        src, len(src), name.encode(), macros, ctypes.cast(includes.obj, ctypes.c_void_p),
-        entry.encode(), profile.encode(), flags, 0, ctypes.byref(code), ctypes.byref(errors),
+        src, len(src), b'shader', macros, ctypes.cast(includes.obj, ctypes.c_void_p),
+        entry.encode(), profile.encode(), COMPILE_FLAGS, 0, ctypes.byref(code), ctypes.byref(errors),
     )  # fmt: skip
     data, log = code.take(), errors.take().decode(errors='replace')
     return (data if hr >= 0 else None), log
@@ -236,7 +236,7 @@ SIT_BUFFER = {5, 7}
 SRV_DIMENSION = {4: (2, 0), 6: (2, 1), 8: (3, 0), 9: (4, 0), 5: (5, 0), 7: (5, 1), 10: (6, 0), 2: (2, 0), 3: (5, 0)}
 SVF_USED = 2
 # D3D_SHADER_VARIABLE_CLASS / TYPE
-CLASS_MATRIX_ROWS, CLASS_MATRIX_COLUMNS, CLASS_STRUCT = 2, 3, 5
+CLASS_MATRIX_ROWS, CLASS_MATRIX_COLUMNS = 2, 3
 VAR_TYPE = {3: 0, 2: 1, 19: 1, 1: 2}  # float -> 0, int/uint -> 1, bool -> 2
 
 
@@ -615,16 +615,14 @@ def effective_target(target, keywords):
     return target
 
 
-def compile_program(
-    text, shader_dir, stage, entry, target, keywords, flags=COMPILE_FLAGS, extra_defines=(), project=PROJECT
-):
+def compile_program(text, shader_dir, stage, entry, target, keywords, project=PROJECT):
     """(Compiled, messages); Compiled is None when D3DCompile rejects the program. `project` is the
     root that `#include "Assets/..."` resolves against."""
     target = effective_target(target, keywords)
     sm = shader_model(target)
     profile = f'{"vs" if stage == "vp" else "ps"}_{sm}_0'
     dirs = [shader_dir, project, CGINCLUDES]
-    dxbc, log = d3dcompile(text, [*defines(target, stage, keywords), *extra_defines], entry, profile, dirs, flags)
+    dxbc, log = d3dcompile(text, defines(target, stage, keywords), entry, profile, dirs)
     if dxbc is None:
         return None, log
     b = derive(dxbc, stage)

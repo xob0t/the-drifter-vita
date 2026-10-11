@@ -70,8 +70,3 @@ class Preload:
             return place
         a = self.layout.db.by_guid.get(key[0])
         return (*place, a.path.rsplit('/', 1)[-1] if a else key[0][:8], key[1])
-
-
-def preload(layout, placement, file_name, project=PROJECT):
-    """The PreloadData dict of a file (path ID 1); references carry their file as 'file'."""
-    return Preload(layout, placement, project).preload(file_name)
