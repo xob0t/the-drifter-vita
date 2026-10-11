@@ -159,6 +159,17 @@ class Signatures(unittest.TestCase):
         self.assertFalse(doctor.signer_is_unity('Valid', 'CN=Unity Technologies, O=Someone Else'))
         self.assertFalse(doctor.signer_is_unity('Valid', 'CN=x, O=Unity Technologies Fan Club'))
 
+    def test_microsoft_signature(self):
+        microsoft = 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US'
+        self.assertTrue(doctor.signer_is_microsoft('Valid', microsoft))
+        self.assertFalse(doctor.signer_is_microsoft('HashMismatch', microsoft))
+        self.assertFalse(doctor.signer_is_microsoft('Valid', 'CN=x, O=Microsoft Corporation Fans'))
+
+    def test_vc_runtime(self):
+        found = doctor.vc_runtime()  # None on a Windows without the runtime
+        if found:
+            self.assertEqual(found[0], 14)
+
 
 class License(unittest.TestCase):
     def test_log(self):

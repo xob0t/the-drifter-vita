@@ -109,13 +109,14 @@ def editor_data(version):
     return EDITORS / version / 'Editor' / 'Data'
 
 
-def download(url, destination: Path, digest: str):
+def download(url, destination: Path, digest: str | None):
     """Download url to destination and check its hash: SHA-256, or SHA-1 for a 40-digit pin (archive.org
     lists only SHA-1 and MD5 for an item's files). A file already there with that hash is kept.
     Timeouts, dropped connections and server errors are retried a few times. Stops on a mismatch
-    and leaves nothing behind."""
-    algorithm = 'sha1' if len(digest) == 40 else 'sha256'
-    if destination.exists() and file_hash(destination, algorithm) == digest:
+    and leaves nothing behind. digest None: a file its publisher updates in place, which the caller
+    checks another way (its signature)."""
+    algorithm = 'sha1' if digest and len(digest) == 40 else 'sha256'
+    if digest and destination.exists() and file_hash(destination, algorithm) == digest:
         return destination
     import http.client
     import urllib.error
@@ -136,7 +137,7 @@ def download(url, destination: Path, digest: str):
             log(f'  {error}; trying again in {wait} s ({attempt} of {DOWNLOAD_ATTEMPTS} attempts failed)')
             time.sleep(wait)
     actual = file_hash(part, algorithm)
-    if actual != digest:
+    if digest and actual != digest:
         part.unlink()
         sys.exit(
             f'{url}: {algorithm.upper()} {actual}, expected {digest}. The download is corrupt or not the pinned file.'

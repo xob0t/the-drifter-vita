@@ -10,12 +10,16 @@
 The Unity installers come from Unity's CDN, the PS Vita module from its archive.org copy (Unity no
 longer serves it). Every download is checked against a pinned hash (SHA-256; SHA-1 for the SDK's
 files, the only one archive.org lists), and the Unity installers must carry Unity Technologies'
-Authenticode signature before they run. Installers that need administrator rights ask for them (UAC).
+Authenticode signature before they run. The one exception is Microsoft's Visual C++
+Redistributable, which Microsoft updates in place: it must carry Microsoft's signature instead.
+Installers that need administrator rights ask for them (UAC).
 
 With --vita and no PS Vita SDK on the machine, setup downloads SDK 3.570 from archive.org and
 extracts it to C:\\vitasdk. --vita-sdk takes your own copy instead, an archive (.zip, .7z, ...) or a
 folder. Either way setup checks the SDK's tools and version and sets SCE_PSP2_SDK_DIR for your user.
-The PS Vita build (tools/builder) needs nothing more. --unity adds what the editor's PS Vita build
+--vita also installs the current Visual C++ runtime when Windows has an older one (the Unity 2018
+installer brings the 2015 one, which the builder's texture encoder crashes in). The PS Vita build
+(tools/builder) needs nothing more. --unity adds what the editor's PS Vita build
 (pipeline.py --unity) needs: the SDK's Target Manager Server and Publishing Tools (SCE_ROOT_DIR;
 Publishing Tools need .NET Framework 3.5), and the license check. --dry-run reports what would be done.
 """
@@ -178,6 +182,33 @@ class Setup:
             )
         if root is not None:
             self.set_env('vita-sdk', 'SCE_ROOT_DIR', root, ask=found is not None)
+
+    def vc_runtime(self):
+        """Microsoft's current Visual C++ Redistributable, when System32's msvcp140.dll is older than the
+        builder's native packages need."""
+        check = doctor.check_vc_runtime()
+        if check.ok:
+            self.say('vc-runtime', f'Visual C++ runtime {check.detail}')
+            return
+        if self.args.dry_run:
+            self.say('vc-runtime', f'{check.detail}: would install {doctor.VC_REDIST_URL}')
+            return
+        installer = DOWNLOADS / 'vc_redist.x64.exe'
+        download(doctor.VC_REDIST_URL, installer, None)
+        status, subject = authenticode(installer)
+        if not doctor.signer_is_microsoft(status, subject):
+            sys.exit(
+                f'{installer.name}: no valid Authenticode signature of Microsoft (status {status}, '
+                f'signer {subject or "none"}). Not running it.'
+            )
+        print(f'  signature: {status}, {subject}')
+        self.say('vc-runtime', f'{check.detail}: installing the current Visual C++ Redistributable')
+        code = run_elevated(installer, '/install /quiet /norestart')
+        installer.unlink(missing_ok=True)
+        # 3010: installed, a restart pending; 1638: a newer version is already installed.
+        if code not in (0, 3010, 1638) or not doctor.check_vc_runtime().ok:
+            sys.exit(f'{installer.name} exited with code {code}; {doctor.check_vc_runtime().detail}')
+        self.say('vc-runtime', f'Visual C++ runtime {doctor.check_vc_runtime().detail}')
 
     def download_sdk(self):
         """SDK 3.570 from archive.org, extracted as an archive passed with --vita-sdk is."""
@@ -556,6 +587,7 @@ def main():
     setup.game()
     if args.vita:
         setup.vita_sdk()
+        setup.vc_runtime()
     if args.vita_host:
         setup.vita_host()
     if not args.vita or args.unity:  # the PS Vita build runs no editor

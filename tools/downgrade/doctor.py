@@ -476,6 +476,55 @@ def check_visual_cpp():
     )
 
 
+# The builder's native packages (quicktex's encoders) are built with Visual Studio 2022 17.10 or later and
+# crash in an older msvcp140.dll, such as the 2015 runtime (14.0.23026) the Unity 2018 installer brings.
+VC_RUNTIME_MIN = (14, 40)
+VC_REDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+
+
+def file_version(path: Path):
+    """(major, minor, build, revision) from a DLL's version resource, or None."""
+    import ctypes
+    from ctypes import wintypes
+
+    version = ctypes.WinDLL('version')
+    size = version.GetFileVersionInfoSizeW(str(path), None)
+    if not size:
+        return None
+    data = ctypes.create_string_buffer(size)
+    if not version.GetFileVersionInfoW(str(path), 0, size, data):
+        return None
+    info, length = ctypes.c_void_p(), wintypes.UINT()
+    if not version.VerQueryValueW(data, '\\', ctypes.byref(info), ctypes.byref(length)):
+        return None
+    fixed = ctypes.cast(info, ctypes.POINTER(wintypes.DWORD * 4)).contents  # signature, struct version, MS, LS
+    return fixed[2] >> 16, fixed[2] & 0xFFFF, fixed[3] >> 16, fixed[3] & 0xFFFF
+
+
+def vc_runtime():
+    """The version of the 64-bit Visual C++ runtime (System32's msvcp140.dll), or None."""
+    path = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'msvcp140.dll'
+    return file_version(path) if path.exists() else None
+
+
+def check_vc_runtime():
+    found = vc_runtime()
+    shown = '.'.join(map(str, found)) if found else None
+    return Check(
+        'Visual C++ runtime',
+        bool(found) and found[:2] >= VC_RUNTIME_MIN,
+        f'{shown} (msvcp140.dll)'
+        if found and found[:2] >= VC_RUNTIME_MIN
+        else f'{shown or "none"}; the builder needs {".".join(map(str, VC_RUNTIME_MIN))} or later',
+        f'{SETUP} --vita (installs the current Visual C++ Redistributable)',
+    )
+
+
+def signer_is_microsoft(status, subject):
+    """Get-AuthenticodeSignature's Status and SignerCertificate.Subject of a Microsoft installer."""
+    return status == 'Valid' and re.search(r'(^|,\s*)O=Microsoft Corporation\s*(,|$)', subject, re.I) is not None
+
+
 def check_vita_sdk(unity=False):
     """The PS Vita SDK and the Target Manager tools, through the variables Unity reads. Only the
     editor's build (unity) needs Target Manager Server and Publishing Tools; the builder uses the SDK alone."""
@@ -656,7 +705,7 @@ def module_checks(target, version, unity=False):
     if target == 'il2cpp':
         return [check_editor(version, 'il2cpp'), check_visual_cpp()]
     if target == 'vita':
-        return [check_editor(version, 'vita'), *check_vita_sdk(unity)]
+        return [check_editor(version, 'vita'), *check_vita_sdk(unity), check_vc_runtime()]
     return []
 
 
