@@ -30,7 +30,7 @@ It has not run on a console yet. Every piece is checked against the player Unity
 - Audio: every AudioClip field, FSB5 header and stream offset identical; the HEVAG samples come from our encoder (Sony's is closed), at a median 39.5 dB SNR against the source (Unity's: 35.1 dB).
 - DXT textures come from quicktex, slightly closer to the source than Unity's encoder.
 - Code: global-metadata.dat and resources.dat identical; the module has the same sections, imports, exports and app info, linked in another order (Unity's own builds differ the same way).
-- globalgamemanagers: per-build GUIDs, three lists in Unity's hash order, and the order of `[RuntimeInitializeOnLoadMethod]` methods (which is the order they run) differ.
+- globalgamemanagers: per-build GUIDs, three lists in Unity's hash order, and the order of `[RuntimeInitializeOnLoadMethod]` methods (which is the order they run) differ. The editor collects those in native code; ours run in type definition order, which moves `MainThread.Record` and `SceneUnloads.Register` ahead of `ParticleCameras`, `LoopSteps` and `ParticleRate`. Neither depends on the others: `MainThread` sets its flag on first use if `Record` has not run, and `SceneUnloads` is the only one of them that handles `sceneUnloaded` at startup (`ParticleRate` adds its handler on the first `sceneLoaded`).
 
 ## Rules found
 
