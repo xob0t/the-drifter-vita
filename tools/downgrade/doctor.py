@@ -504,6 +504,7 @@ def check_vita_sdk(unity=False):
                     f'{sdk} (version {shown})' + (' - set for new shells; this one does not see it' if stale else ''),
                 )
             )
+    fix = f'{SETUP} --vita --unity (installs Target Manager Server and Publishing Tools from the SDK)'
     root, stale = env('SCE_ROOT_DIR')
     if not root:
         found = sce_root()
