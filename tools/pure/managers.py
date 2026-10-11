@@ -505,7 +505,8 @@ class Managers:
         return {'m_Container': container, 'm_DependentAssets': dependent}
 
     # RuntimeInitializeOnLoadManager: the classes in type definition order. The editor's order is
-    # its own (no name, token or hash order reproduces it); the set and the load types match.
+    # its own (native; no name, token or hash order reproduces it). The set and the load types
+    # match, and docs/pure.md says why the order of Compat's methods does not matter.
     def class_300(self):
         assemblies, namespaces, classes, methods = [], [], [], []
         before, after = [], []
