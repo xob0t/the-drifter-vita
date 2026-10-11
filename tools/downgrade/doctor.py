@@ -439,13 +439,6 @@ def check_python():
     return Check('Python packages', True, 'numpy, Pillow, UnityPy, pyelftools')
 
 
-def check_git():
-    git = shutil.which('git')
-    return Check(
-        'Git', bool(git), git or 'not on PATH (the pipeline clones USCSandbox with it)', 'winget install Git.Git'
-    )
-
-
 def check_csc():
     return Check(
         '.NET Framework C# compiler',
@@ -561,7 +554,7 @@ def file_version(path: Path):
 
 def vc_runtime():
     """The version of the 64-bit Visual C++ runtime (System32's msvcp140.dll), or None."""
-    path = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'msvcp140.dll'
+    path = Path(os.environ.get('SYSTEMROOT', r'C:\Windows')) / 'System32' / 'msvcp140.dll'
     return file_version(path) if path.exists() else None
 
 
@@ -793,7 +786,6 @@ def checks_for(target, game: Path, version=TARGET, license=False):
     platform = 'vita' if target == 'vita' else 'windows'
     checks = [
         check_python(),
-        check_git(),
         check_csc(),
         check_game(game),
         check_assetripper(),
@@ -834,8 +826,6 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET, unity=Fal
                 )
             )
         checks += [check_csc(), check_unity_files(version) if editor_free else check_editor(version)]
-        if not (EXTERNAL / 'USCSandbox').exists():
-            checks.append(check_git())
     if 'build' in stages:
         if 'project' not in stages:
             checks.append(

@@ -14,14 +14,13 @@ The CRT filter is off by default because it's expensive on the Vita. Turn it on 
 
 You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō with VitaShell. Setup downloads Sony's PS Vita SDK 3.570 from archive.org, or takes your own copy.
 
-1. Install [uv](https://docs.astral.sh/uv/) and Git.
+1. Install [uv](https://docs.astral.sh/uv/).
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-   winget install Git.Git
    ```
 
-2. Clone this repository. `tools/setup.py` gets the rest: AssetRipper, the PS Vita SDK, and the files the build needs from Unity 2018.2.19f1's installers. It extracts those files and doesn't install Unity.
+2. Download this repository (Code → Download ZIP) and extract it, or clone it. In its folder, `tools/setup.py` gets the rest: AssetRipper, the PS Vita SDK, and the files the build needs from Unity 2018.2.19f1's installers. It extracts those files and doesn't install Unity.
 
    ```powershell
    uv run tools/setup.py --vita                # or: --vita-sdk <your SDK archive or folder>

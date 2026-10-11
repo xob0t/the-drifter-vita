@@ -614,6 +614,27 @@ class Tools(unittest.TestCase):
         black, grey = Image.new('RGB', (4, 2)), Image.new('RGB', (8, 4), (10, 20, 30))
         self.assertEqual(capture.mean_difference(black, grey), 20.0)
 
+    def test_apply_patch(self):
+        patch = (
+            'A comment.\n\n'
+            'diff --git a/src/a.cs b/src/a.cs\n--- a/src/a.cs\n+++ b/src/a.cs\n'
+            '@@ -2,3 +2,3 @@\n one\n-two\n+TWO\n three\n'
+            '@@ -6,2 +6,3 @@\n five\n+five and a half\n six\n'
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            (folder / 'src').mkdir()
+            source = folder / 'src' / 'a.cs'
+            source.write_bytes(b'\xef\xbb\xbfzero\r\none\r\ntwo\r\nthree\r\nfour\r\nfive\r\nsix\r\n')
+            (folder / 'p.patch').write_text(patch)
+            common.apply_patch(folder / 'p.patch', folder)
+            self.assertEqual(
+                source.read_bytes(),
+                b'\xef\xbb\xbfzero\r\none\r\nTWO\r\nthree\r\nfour\r\nfive\r\nfive and a half\r\nsix\r\n',
+            )
+            with self.assertRaises(SystemExit):  # 'two' is gone
+                common.apply_patch(folder / 'p.patch', folder)
+
 
 if __name__ == '__main__':
     os.chdir(HERE)
