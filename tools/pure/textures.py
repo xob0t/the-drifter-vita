@@ -325,8 +325,9 @@ def sprite(asset, placement, file_name, project=PROJECT):
 
 
 def physics_shape(path, settings, pivot, ppu):
-    """The fallback physics shape (generateFallbackPhysicsShape). Unity traces the alpha outline;
-    this approximates it by the convex hull of the visible texels' corners."""
+    """The fallback physics shape (generateFallbackPhysicsShape). Unity traces the alpha outline
+    2 pixels out from the visible texels, within the sprite's rect, and simplifies it; this takes the
+    convex hull of the same area, which has the same bounds (what the game reads, GuiUtils)."""
     if settings.get('spriteGenerateFallbackPhysicsShape', '1') == '0':
         return []
     rgba = load_rgba(path)
@@ -336,7 +337,9 @@ def physics_shape(path, settings, pivot, ppu):
         return []
     texels = zip(xs.tolist(), ys.tolist(), strict=True)
     corners = {(x + dx, y + dy) for x, y in texels for dx in (0, 1) for dy in (0, 1)}
-    hull = convex_hull(sorted(corners))
+    grown = {(min(max(x + dx, 0), w), min(max(y + dy, 0), h)) for x, y in convex_hull(sorted(corners))
+             for dx in (-2, 2) for dy in (-2, 2)}  # fmt: skip
+    hull = convex_hull(sorted(grown))
     px, py = pivot[0] * w, pivot[1] * h
     return [[{'x': f32((x - px) / ppu), 'y': f32((y - py) / ppu)} for x, y in hull]]
 
