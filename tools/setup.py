@@ -4,6 +4,7 @@
     uv run tools/setup.py --il2cpp               # also the editor's Windows IL2CPP module
     uv run tools/setup.py --vita                 # also the PS Vita module and the PS Vita SDK
     uv run tools/setup.py --vita --vita-sdk <your SDK archive or folder>
+    uv run tools/setup.py --vita --unity         # also what the editor's PS Vita build needs
     uv run tools/setup.py doctor [--target windows|il2cpp|vita] [--license]
 
 The Unity installers come from Unity's CDN, the PS Vita module from its archive.org copy (Unity no
@@ -11,11 +12,12 @@ longer serves it). Every download is checked against a pinned hash (SHA-256; SHA
 files, the only one archive.org lists), and the Unity installers must carry Unity Technologies'
 Authenticode signature before they run. Installers that need administrator rights ask for them (UAC).
 
-With --vita and no PS Vita SDK on the machine, setup downloads SDK 3.570 from archive.org, extracts
-it to C:\\vitasdk and installs its Target Manager Server and Publishing Tools. --vita-sdk takes your
-own copy instead, an archive (.zip, .7z, ...) or a folder. Either way setup checks the SDK's tools
-and version and sets SCE_PSP2_SDK_DIR and SCE_ROOT_DIR for your user. --dry-run reports what would
-be done.
+With --vita and no PS Vita SDK on the machine, setup downloads SDK 3.570 from archive.org and
+extracts it to C:\\vitasdk. --vita-sdk takes your own copy instead, an archive (.zip, .7z, ...) or a
+folder. Either way setup checks the SDK's tools and version and sets SCE_PSP2_SDK_DIR for your user.
+The PS Vita build (tools/builder) needs nothing more. --unity adds what the editor's PS Vita build
+(pipeline.py --unity) needs: the SDK's Target Manager Server and Publishing Tools (SCE_ROOT_DIR;
+Publishing Tools need .NET Framework 3.5), and the license check. --dry-run reports what would be done.
 """
 
 import argparse
@@ -168,8 +170,12 @@ class Setup:
         # An SDK found on the machine is offered; one passed with --vita-sdk or downloaded is what the user asked for.
         self.set_env('vita-sdk', 'SCE_PSP2_SDK_DIR', sdk, ask=found is not None)
         root = doctor.sce_root()
-        if root is None:
+        if root is None and self.args.unity:
             root = self.install_target_manager(sdk)
+        elif root is None:
+            self.say(
+                'vita-sdk', 'Target Manager Server and Publishing Tools skipped: only builds with --unity need them'
+            )
         if root is not None:
             self.set_env('vita-sdk', 'SCE_ROOT_DIR', root, ask=found is not None)
 
@@ -527,6 +533,12 @@ def main():
     parser.add_argument(
         '--keep-downloads', action='store_true', help=f'keep the installers and the SDK archive in {DOWNLOADS}'
     )
+    parser.add_argument(
+        '--unity',
+        action='store_true',
+        help="with --vita: also what the editor's PS Vita build (pipeline.py --unity) needs: Target Manager "
+        'Server, Publishing Tools and .NET Framework 3.5, and the license check',
+    )
     parser.add_argument('--skip-license-check', action='store_true', help='do not start the editor at the end')
     args = parser.parse_args()
     if args.vita_sdk:
@@ -546,7 +558,8 @@ def main():
         setup.vita_sdk()
     if args.vita_host:
         setup.vita_host()
-    setup.license('vita' if args.vita else 'windows')
+    if not args.vita or args.unity:  # the PS Vita build runs no editor
+        setup.license('vita' if args.vita else 'windows')
     print()
     if args.dry_run:
         print('Dry run: nothing was changed.')

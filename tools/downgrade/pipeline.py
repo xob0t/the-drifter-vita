@@ -795,14 +795,14 @@ def main():
     rip_dir = WORK / f'rip-{args.version}'
     if args.platform == 'vita' or args.stage in ('package', 'deploy'):
         args.platform, args.backend = 'vita', 'il2cpp'
-    if not args.skip_checks:
-        import doctor
-
-        doctor.preflight(args.stage, args.platform, args.backend, args.game, args.version)
     # The editor-free build makes the PS Vita player of the target version; anything else needs the editor.
     unity = args.unity or args.platform != 'vita' or args.version != TARGET
     if not unity and (args.development or args.import_jobs):
         parser.error('--development and --import-jobs are for the editor build: add --unity')
+    if not args.skip_checks:
+        import doctor
+
+        doctor.preflight(args.stage, args.platform, args.backend, args.game, args.version, unity)
     project = WORK / (f'drifter-{args.version}' + ('-vita' if args.platform == 'vita' else ''))
     output = build_dir(args.version, args.backend, args.platform, args.diag, unity)
     if args.platform == 'windows':

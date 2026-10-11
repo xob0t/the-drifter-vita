@@ -211,6 +211,14 @@ class Checklist(unittest.TestCase):
         self.assertIn('PS Vita module', build)
         self.assertIn('PS Vita SDK', build)
         self.assertNotIn('AssetRipper 2.0.0', build)
+        # Only the editor's PS Vita build (--unity) needs Target Manager Server and Publishing Tools.
+        manager = lambda unity: next(  # noqa: E731
+            c
+            for c in doctor.stage_checks('build', 'vita', 'il2cpp', game=Path('nowhere'), unity=unity)
+            if c.name.startswith('Target Manager')
+        )
+        self.assertFalse(manager(False).required)
+        self.assertTrue(manager(True).required)
         everything = names('all', 'windows', 'il2cpp')
         self.assertEqual(len(everything), len(set(everything)))
         self.assertIn('Visual Studio C++ tools', everything)

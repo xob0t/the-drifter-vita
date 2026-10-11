@@ -476,8 +476,9 @@ def check_visual_cpp():
     )
 
 
-def check_vita_sdk():
-    """The PS Vita SDK and the Target Manager tools, through the variables Unity reads."""
+def check_vita_sdk(unity=False):
+    """The PS Vita SDK and the Target Manager tools, through the variables Unity reads. Only the
+    editor's build (unity) needs Target Manager Server and Publishing Tools; the builder uses the SDK alone."""
     fix = f'{SETUP} --vita (downloads the SDK), or --vita-sdk <your SDK archive or folder>'
     checks = []
     sdk, stale = env('SCE_PSP2_SDK_DIR')
@@ -525,6 +526,10 @@ def check_vita_sdk():
                 else str(root) + (' - set for new shells; this one does not see it' if stale else ''),
                 fix,
             )
+        )
+    if not unity:
+        checks[-1] = replace(
+            checks[-1], required=False, detail=checks[-1].detail + ' (only builds with --unity need it)'
         )
     return checks
 
@@ -644,12 +649,13 @@ def project_dir(version, platform):
     return WORK / (f'drifter-{version}' + ('-vita' if platform == 'vita' else ''))
 
 
-def module_checks(target, version):
-    """The editor module a target builds with and what its builds need besides."""
+def module_checks(target, version, unity=False):
+    """The editor module a target builds with and what its builds need besides (unity: a PS Vita build
+    by the editor, pipeline.py --unity)."""
     if target == 'il2cpp':
         return [check_editor(version, 'il2cpp'), check_visual_cpp()]
     if target == 'vita':
-        return [check_editor(version, 'vita'), *check_vita_sdk()]
+        return [check_editor(version, 'vita'), *check_vita_sdk(unity)]
     return []
 
 
@@ -692,7 +698,7 @@ def checks_for(target, game: Path, version=TARGET, license=False):
     return checks
 
 
-def stage_checks(stage, platform, backend, game: Path, version=TARGET):
+def stage_checks(stage, platform, backend, game: Path, version=TARGET, unity=False):
     """The fast checks of one pipeline.py stage (no network, no editor start)."""
     target = target_of(platform, backend)
     project = project_dir(version, platform)
@@ -725,7 +731,7 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET):
                     'uv run tools/downgrade/pipeline.py project' + (' --platform vita' if platform == 'vita' else ''),
                 )
             )
-        checks += [check_editor(version), *module_checks(target, version)]
+        checks += [check_editor(version), *module_checks(target, version, unity)]
     if stage in ('rip', 'project', 'build', 'all'):
         checks.append(check_space(target, project.exists()))
     if stage == 'deploy':
@@ -737,11 +743,11 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET):
     return list(unique.values())
 
 
-def preflight(stage, platform, backend, game: Path, version=TARGET):
+def preflight(stage, platform, backend, game: Path, version=TARGET, unity=False):
     """Stop before a stage whose requirements are missing, with the checklist and the fixes. The SDK's
     variables set for new shells are taken into this one, for the editor the build starts."""
     adopt_env(('SCE_PSP2_SDK_DIR', 'SCE_ROOT_DIR'))
-    checks = stage_checks(stage, platform, backend, game, version)
+    checks = stage_checks(stage, platform, backend, game, version, unity)
     lines, failed = summarize(checks)
     if failed:
         print(f'pipeline.py {stage}: {failed} requirement(s) missing:', *lines, sep='\n', file=sys.stderr)
