@@ -12,26 +12,6 @@ The rough spot is walking around the cemetery, where the frame rate drops to the
 
 The CRT filter is off by default. It costs about 15 fps on the Vita, so it's there if you want the look and don't mind the hit. Turn it on in Options, or with Select + R.
 
-## What it took
-
-The Drifter was never made for the Vita, and the Vita can't run the PC build. Getting it playable came down to five things.
-
-**Going back two Unity versions.** The game is built on Unity 2020, and Unity dropped the Vita after 2018.2. AssetRipper exports the game's scenes, art and sound in the 2018 format. An IL rewriter retargets the game's compiled code to 2018's engine, and a small runtime library, DrifterCompat, fills in what 2018 lacks. The game's shaders are decompiled and rewritten so the Vita's GPU and shader compiler accept them.
-
-**Fitting in memory.** The game starts with about 105 MB of RAM free on the Vita. Textures use the Vita GPU's own compressed format, at a quarter of the memory. Sound stays compressed in memory, long loops stream, and the pipeline unloads what earlier rooms leave behind. Free memory used to shrink with every room change; now it holds steady.
-
-**Running at 60 fps on a 2011 handheld CPU.** The game's scripts run roughly 20 times slower there than on a PC. Most of the speed comes from rules that make the game do less work and still give the same results: cached name lookups, far fewer allocations so the garbage collector rarely pauses the game, cheaper pathfinding, skipping animations nobody can see, and drawing rain, sand and bees in batches. The water and noise effects were rewritten to look the same at a fraction of the cost.
-
-**Playing with Vita buttons.** The Vita has no triggers or second pair of shoulder buttons. L and R act as the triggers, and touching the left or right half of the screen acts as the bumpers. The menus use the game's own console layout, the button prompts are redrawn for the Vita, and PC-only options such as Quit and fullscreen are gone.
-
-**Staying faithful.** The changes are checked against the original game. A test probe renders the same moment in the PC original and in the translated build and compares the pictures, and most performance rules have a check that runs the original code next to the new one and counts differences. A rule only stays in if the game plays the same and looks the same, or, for a few effects like the water, looks the same to the eye.
-
-## Why there's no VPK to download
-
-A VPK of this project would be the game. The Vita player can't load The Drifter's PC files when it starts: Unity compiles the game's code into the app itself, and converts every scene, sprite and sound into the Vita's formats while building. So a finished VPK holds all of The Drifter's code, art and music, just repackaged. Sharing that means sharing the game, which isn't ours to give away.
-
-The repository holds only the recipe. You run it on the copy of The Drifter you own, and the build happens on your PC.
-
 ## Building
 
 You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō with VitaShell. Setup downloads Sony's PS Vita SDK 3.570 from archive.org, or takes your own copy.
@@ -69,6 +49,20 @@ Install the VPK with VitaShell. For later builds you don't have to reinstall: st
 You don't need a Windows player for any of this. It's for testing: `uv run tools/downgrade/pipeline.py all` builds one into `builds/drifter-2018.2.19f1/`.
 
 [docs/build.md](docs/build.md) goes through each step in detail, lists the options (`--backend il2cpp`, `--diag`, `--game`, ...) and says what to check when a stage fails.
+
+## Why there's no VPK to download
+
+A VPK of this project would be the game. The Vita player can't load The Drifter's PC files when it starts: the build compiles the game's code into the app itself, and converts every scene, sprite and sound into the Vita's formats while building. So a finished VPK holds all of The Drifter's code, art and music, just repackaged. Sharing that means sharing the game, which isn't ours to give away.
+
+The repository holds only the recipe. You run it on the copy of The Drifter you own, and the build happens on your PC.
+
+## What it took
+
+- **Going back to Unity 2018.2**, the last Unity with a Vita build module. AssetRipper exports the game in the 2018 format, an IL rewriter retargets its code, a small runtime library (DrifterCompat) fills in what 2018 lacks, and the shaders are decompiled and rewritten for the Vita's GPU.
+- **Fitting in about 105 MB of RAM.** Textures use the Vita's compressed format, sound stays compressed or streams, and what earlier rooms leave behind is unloaded.
+- **60 fps on a 2011 handheld CPU**, where the game's scripts run about 20 times slower than on a PC. Rules make the game do less work for the same result, and the water and noise effects were rewritten to look the same for less.
+- **Vita controls.** L and R are the triggers, touching either half of the screen acts as a bumper, and the button prompts are redrawn.
+- **Staying faithful.** Test tools render the same moment in the original and in this build and compare the pictures; a rule stays only if the game plays and looks the same.
 
 ## Documentation
 
