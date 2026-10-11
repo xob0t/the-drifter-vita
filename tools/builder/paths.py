@@ -17,8 +17,11 @@ DIAG = DIAG_MARKER.exists() and DIAG_MARKER.read_text(encoding='utf-8') == 'True
 # checks compare against.
 REFERENCE = ROOT / 'builds' / (f'drifter-{TARGET}-vita-unity' + ('-diag' if DIAG else ''))
 REFERENCE_MEDIA = REFERENCE / 'Media'
-# Files taken from Unity's installers (CGIncludes, the PS Vita player and its shader includes).
-EDITOR_DATA = common.EDITORS / TARGET / 'Editor' / 'Data'
+# Files taken from Unity's installers (CGIncludes, the PS Vita player and its shader includes, IL2CPP):
+# what setup.py extracted from them, or an installed editor's.
+EDITOR_DATA = common.editor_data(TARGET)
+# The Windows build's player and tools, which only an installed editor has.
+INSTALLED_EDITOR_DATA = common.EDITORS / TARGET / 'Editor' / 'Data'
 CGINCLUDES = EDITOR_DATA / 'CGIncludes'
 PSP2_PLAYER = EDITOR_DATA / 'PlaybackEngines' / 'PSP2Player'
 SDK = Path(common.setting('SCE_PSP2_SDK_DIR') or r'C:\vitasdk\sdk')

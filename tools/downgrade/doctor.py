@@ -33,6 +33,7 @@ from common import (
     TARGET,
     WORK,
     default_game,
+    editor_data,
     env,
 )
 
@@ -63,6 +64,48 @@ EDITOR_FILES = {
     'vita': 'Editor/Data/PlaybackEngines/PSP2Player/PSP2Player_Il2cpp.self',
 }
 MODULE_NAMES = {'il2cpp': 'Windows IL2CPP module', 'vita': 'PS Vita module'}
+
+# What the pipeline and the editor-free PS Vita build read from Unity's installers, which setup.py
+# extracts with 7-Zip instead of installing them: paths inside each installer (NSIS archives). The PS
+# Vita module's folder becomes Editor/Data/PlaybackEngines/PSP2Player.
+UNITY_FILES = {
+    'editor': [
+        r'Editor\Data\CGIncludes',
+        r'Editor\Data\Managed',
+        r'Editor\Data\MonoBleedingEdge\lib\mono\unityaot',
+        r'Editor\Data\MonoBleedingEdge\lib\mono\unityjit',
+        r'Editor\Data\MonoBleedingEdge\etc',
+        r'Editor\Data\il2cpp',
+        r'Editor\Data\Tools\MapFileParser',
+        r'Editor\Data\Resources\unity_builtin_extra',
+        r'Editor\Data\UnityExtensions\Unity',
+    ],
+    'vita': ['$INSTDIR$_59_'],
+}
+UNITY_FILES_VITA_FOLDER = '$INSTDIR$_59_'
+# A file of each part, under Editor/Data, to check the extraction by.
+UNITY_FILES_CHECKED = [
+    'CGIncludes/UnityCG.cginc',
+    'Managed/UnityEngine/UnityEngine.CoreModule.dll',
+    'MonoBleedingEdge/lib/mono/unityaot/mscorlib.dll',
+    'MonoBleedingEdge/lib/mono/unityjit/mscorlib.dll',
+    'il2cpp/build/il2cpp.exe',
+    'Tools/MapFileParser/MapFileParser.exe',
+    'Resources/unity_builtin_extra',
+    'UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll',
+    'PlaybackEngines/PSP2Player/PSP2Player_Il2cpp.self',
+]
+# 7-Zip reads NSIS installers; where none is installed, setup.py unpacks its package with 7zr.
+SEVEN_ZIP = {
+    '7zr': (
+        'https://github.com/ip7z/7zip/releases/download/26.04/7zr.exe',
+        '256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282',
+    ),
+    'package': (
+        'https://github.com/ip7z/7zip/releases/download/26.04/7z2604-x64.exe',
+        'd54bf805f9f3704d1e8db2fa3498ae7ef2df0312b40b558e7c71c734430a665d',
+    ),
+}
 
 
 def module_name(module, version=TARGET):
@@ -132,6 +175,8 @@ FIRST_BUILD_GB = {'windows': 10, 'il2cpp': 12, 'vita': 15}
 REBUILD_GB = {'windows': 3, 'il2cpp': 4, 'vita': 5}
 # The editor and its modules (3.9 GB with both, installers included while they run).
 EDITOR_GB = 5
+# The two installers and what setup.py extracts from them (about 1.2 GB).
+UNITY_FILES_GB = 3
 # A first Vita build's minutes without Node.js and with it (the cache server and parallel audio import).
 FIRST_VITA_BUILD_MINUTES = (100, 40)
 LICENSE_CHECK = 'Unity license (batch mode)'
@@ -465,6 +510,19 @@ def check_editor(version, module='editor'):
     return Check(module_name(module, version), path.exists(), str(root if module == 'editor' else path), fix)
 
 
+def check_unity_files(version=TARGET):
+    """The files the pipeline and the editor-free PS Vita build read from Unity: extracted from its
+    installers by setup.py, or an installed editor's with its PS Vita module."""
+    data = editor_data(version)
+    gaps = missing(data, UNITY_FILES_CHECKED)
+    return Check(
+        "Unity's files",
+        not gaps,
+        f'{data} lacks ' + ', '.join(gaps) if gaps else str(data),
+        f'{SETUP} --vita (extracts them from Unity {version} installers; installs nothing)',
+    )
+
+
 def check_visual_cpp():
     path = visual_cpp()
     return Check(
@@ -578,9 +636,7 @@ def check_vita_sdk(unity=False):
             )
         )
     if not unity:
-        checks[-1] = replace(
-            checks[-1], required=False, detail=checks[-1].detail + ' (only builds with --unity need it)'
-        )
+        checks[-1] = only_unity(checks[-1])
     return checks
 
 
@@ -705,8 +761,14 @@ def module_checks(target, version, unity=False):
     if target == 'il2cpp':
         return [check_editor(version, 'il2cpp'), check_visual_cpp()]
     if target == 'vita':
-        return [check_editor(version, 'vita'), *check_vita_sdk(unity), check_vc_runtime()]
+        files = check_editor(version, 'vita') if unity else check_unity_files(version)
+        return [files, *check_vita_sdk(unity), check_vc_runtime()]
     return []
+
+
+def only_unity(check):
+    """A check only builds with --unity (the editor's PS Vita build) need."""
+    return replace(check, required=False, detail=check.detail + ' (only builds with --unity need it)')
 
 
 def license_status(target, platform, version, license):
@@ -723,9 +785,7 @@ def license_status(target, platform, version, license):
         check = Check(
             LICENSE_CHECK, True, f'not checked; {SETUP} doctor --target {target} --license starts the editor once'
         )
-    if target == 'vita':
-        check = replace(check, required=False, detail=check.detail + ' (only builds with --unity need it)')
-    return check
+    return only_unity(check) if target == 'vita' else check
 
 
 def checks_for(target, game: Path, version=TARGET, license=False):
@@ -738,9 +798,12 @@ def checks_for(target, game: Path, version=TARGET, license=False):
         check_game(game),
         check_assetripper(),
         check_fetched(),
-        check_editor(version),
-        *module_checks(target, version),
     ]
+    if target == 'vita':  # the PS Vita build reads Unity's files; only --unity runs the editor
+        checks += [only_unity(check_editor(version)), only_unity(check_editor(version, 'vita'))]
+    else:
+        checks.append(check_editor(version))
+    checks += module_checks(target, version)
     if target == 'vita':
         checks.append(check_vita_host())
     checks += [check_space(target, project_dir(version, platform).exists()), check_node()]
@@ -753,6 +816,8 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET, unity=Fal
     target = target_of(platform, backend)
     project = project_dir(version, platform)
     stages = {'all': ('rip', 'project', 'build')}.get(stage, (stage,))
+    # The PS Vita player of the target version is built without the editor, from Unity's files alone.
+    editor_free = platform == 'vita' and version == TARGET and not unity
     checks = []
     if 'rip' in stages:
         checks += [check_game(game), check_assetripper()]
@@ -768,7 +833,7 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET, unity=Fal
                     'uv run tools/downgrade/pipeline.py rip',
                 )
             )
-        checks += [check_csc(), check_editor(version)]
+        checks += [check_csc(), check_unity_files(version) if editor_free else check_editor(version)]
         if not (EXTERNAL / 'USCSandbox').exists():
             checks.append(check_git())
     if 'build' in stages:
@@ -781,7 +846,7 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET, unity=Fal
                     'uv run tools/downgrade/pipeline.py project' + (' --platform vita' if platform == 'vita' else ''),
                 )
             )
-        checks += [check_editor(version), *module_checks(target, version, unity)]
+        checks += ([] if editor_free else [check_editor(version)]) + module_checks(target, version, not editor_free)
     if stage in ('rip', 'project', 'build', 'all'):
         checks.append(check_space(target, project.exists()))
     if stage == 'deploy':
