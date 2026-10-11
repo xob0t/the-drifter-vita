@@ -961,7 +961,8 @@ def compile_jobs(text, shader_dir, jobs, pool):
 def compile_variants(text, shader_dir, snippet, variants, pool):
     """[(vertex bindings, fragment bindings, vertex code, fragment code) or None] per variant: a
     variant either stage rejects is dropped."""
-    # a keyword that needs more than the snippet's target (SHADOWS_SCREEN: 3.0) raises its variant's
+    # A keyword that needs more than the snippet's target (SHADOWS_SCREEN: 3.0) raises its variant's
+    # compile target.
     jobs = [
         (stage, entry, TARGET_OF[requirements(snippet.target, keywords)], keywords)
         for keywords in variants

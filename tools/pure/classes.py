@@ -1,6 +1,7 @@
 """What the editor's build changes beyond copying an object's fields (see convert.py).
 
-Each fixup takes the release dict, the YAML Doc and the Project, and edits the dict in place.
+Each fixup in FIXUPS takes the release dict, the YAML Doc, the Project and the Scene (None for an
+object in a prefab), and edits the dict in place. ASSET_FIXUPS take the dict, the Doc and the Asset.
 """
 
 from functools import cached_property
@@ -73,7 +74,9 @@ def lightmap_settings(d, doc, project, scene):
 def rect_transform(d, doc, project, scene):
     """A screen space camera canvas drives its root RectTransform. The editor build writes the
     values for its batch mode screen (640x480) scaled by the CanvasScaler; the player recomputes
-    them every frame, so only their shape matters."""
+    them every frame, so only their shape matters. A prefab keeps its values as saved."""
+    if scene is None:
+        return
     canvas = scene.component(doc.fields['m_GameObject'], 223)
     if canvas is None or canvas.fields.get('m_RenderMode') != '1':
         return

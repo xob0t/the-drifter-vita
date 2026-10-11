@@ -78,7 +78,7 @@ def main():
             if cid == 48:
                 guid_of[(f, b.placement.where[(g, fid)][1])] = g
     ref = reference_shaders(b.target.reference)
-    same = 0
+    same = differ = 0
     for key in sorted(ref.keys() | made.keys()):
         theirs, mine = ref.get(key), made.get(key)
         name = (theirs or mine)['m_ParsedForm']['m_Name']
@@ -86,6 +86,7 @@ def main():
             continue
         if theirs is None or mine is None:
             print(f'{key} {name}: only {"built" if theirs is None else "in the reference"}')
+            differ += 1
             continue
         problems = []
         project_shader = guid_of.get(key) != BUILTIN_EXTRA
@@ -107,6 +108,7 @@ def main():
                 what = [k for k in x if x[k] != y.get(k)]
                 problems.append(f'records differ: {len(bad)} (first {bad[0]}: {what})')
         if problems:
+            differ += 1
             print(f'{key} {name}:')
             for p in problems:
                 print('   ', p)
@@ -114,8 +116,8 @@ def main():
             same += 1
             if args.verbose:
                 print(f'{key} {name}: identical')
-    print(f'{same} shaders identical')
-    return 0
+    print(f'{same} shaders identical, {differ} differ')
+    return 1 if differ else 0
 
 
 if __name__ == '__main__':

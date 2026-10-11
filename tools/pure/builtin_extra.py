@@ -280,6 +280,7 @@ def objects(build):
     """[(path ID, serialized bytes)] in write order; a path ID can repeat (the last one wins)."""
     builder = Builder(build.layout)
     out = [(fid, serialize(builder.shader(fid))) for fid in builtin_shader_ids(build.layout)]
+    builder.pool.shutdown()
     out += [(PROJECT_SHADER, serialize(tree)) for tree in project_trees(build)]
     return out
 

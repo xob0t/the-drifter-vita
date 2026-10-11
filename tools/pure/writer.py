@@ -77,11 +77,13 @@ class SerializedWriter:
         types, type_index, script_types = [], {}, []
         entries = []
         for path_id, class_id, script, data, tree in self.objects:
+            if class_id == MONOBEHAVIOUR and script is None:
+                raise ValueError(f"{self.name}: MonoBehaviour {path_id}'s m_Script does not resolve to a script")
             self.resolve(data)
             key = (class_id, script if class_id == MONOBEHAVIOUR else None)
             if key not in type_index:
                 type_index[key] = len(types)
-                if class_id == MONOBEHAVIOUR and script is not None:
+                if class_id == MONOBEHAVIOUR:
                     script_id, old_hash, monoscript = hashes.script_info(script)
                     index = (
                         0 if self.name == 'globalgamemanagers.assets' else self.external('globalgamemanagers.assets')

@@ -10,13 +10,13 @@ builds/drifter-2018.2.19f1-vita):
 - MonoManager: the Windows player's engine modules (its Managed folder, bar UNLISTED_MODULES),
   the four extensions a standalone player takes (UI, Timeline, Networking, SpatialTracking),
   then the project's DLLs.
+- BuildSettings: graphics API Direct3D 11 (2), dynamic batching from PlayerSettings'
+  Standalone batching, OnMouse events in use. Unity also writes a license auth token, which is
+  left empty.
 
 Not reproduced (managers.py's PS Vita output has the same gaps): the order of ScriptMapper's
 built-in extra shaders, of BuildSettings.runtimeClassHashes and of RuntimeInitializeOnLoadManager's
 classes; the build GUID and license token.
-- BuildSettings: graphics API Direct3D 11 (2), dynamic batching from PlayerSettings'
-  Standalone batching, OnMouse events in use. Unity also writes a license auth token, which is
-  left empty.
 
 Everything else (PlayerSettings, InputManager, ScriptMapper, ResourceManager, ...) comes out of
 the PC project through managers.py as it is.
