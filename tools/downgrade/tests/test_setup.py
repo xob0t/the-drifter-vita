@@ -159,6 +159,17 @@ class Signatures(unittest.TestCase):
         self.assertFalse(doctor.signer_is_unity('Valid', 'CN=Unity Technologies, O=Someone Else'))
         self.assertFalse(doctor.signer_is_unity('Valid', 'CN=x, O=Unity Technologies Fan Club'))
 
+    def test_microsoft_signature(self):
+        microsoft = 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US'
+        self.assertTrue(doctor.signer_is_microsoft('Valid', microsoft))
+        self.assertFalse(doctor.signer_is_microsoft('HashMismatch', microsoft))
+        self.assertFalse(doctor.signer_is_microsoft('Valid', 'CN=x, O=Microsoft Corporation Fans'))
+
+    def test_vc_runtime(self):
+        found = doctor.vc_runtime()  # None on a Windows without the runtime
+        if found:
+            self.assertEqual(found[0], 14)
+
 
 class License(unittest.TestCase):
     def test_log(self):
@@ -211,6 +222,14 @@ class Checklist(unittest.TestCase):
         self.assertIn('PS Vita module', build)
         self.assertIn('PS Vita SDK', build)
         self.assertNotIn('AssetRipper 2.0.0', build)
+        # Only the editor's PS Vita build (--unity) needs Target Manager Server and Publishing Tools.
+        manager = lambda unity: next(  # noqa: E731
+            c
+            for c in doctor.stage_checks('build', 'vita', 'il2cpp', game=Path('nowhere'), unity=unity)
+            if c.name.startswith('Target Manager')
+        )
+        self.assertFalse(manager(False).required)
+        self.assertTrue(manager(True).required)
         everything = names('all', 'windows', 'il2cpp')
         self.assertEqual(len(everything), len(set(everything)))
         self.assertIn('Visual Studio C++ tools', everything)

@@ -109,18 +109,50 @@ def editor_data(version):
     return EDITORS / version / 'Editor' / 'Data'
 
 
-def download(url, destination: Path, digest: str):
+def download(url, destination: Path, digest: str | None):
     """Download url to destination and check its hash: SHA-256, or SHA-1 for a 40-digit pin (archive.org
     lists only SHA-1 and MD5 for an item's files). A file already there with that hash is kept.
-    Stops on a mismatch and leaves nothing behind."""
-    algorithm = 'sha1' if len(digest) == 40 else 'sha256'
-    if destination.exists() and file_hash(destination, algorithm) == digest:
+    Timeouts, dropped connections and server errors are retried a few times. Stops on a mismatch
+    and leaves nothing behind. digest None: a file its publisher updates in place, which the caller
+    checks another way (its signature)."""
+    algorithm = 'sha1' if digest and len(digest) == 40 else 'sha256'
+    if digest and destination.exists() and file_hash(destination, algorithm) == digest:
         return destination
-    import urllib.request
+    import http.client
+    import urllib.error
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     part = destination.with_name(destination.name + '.part')
     log(f'Downloading {url}')
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            fetch(url, part)
+            break
+        except (OSError, http.client.HTTPException) as error:
+            permanent = isinstance(error, urllib.error.HTTPError) and error.code < 500 and error.code != 429
+            if permanent or attempt == DOWNLOAD_ATTEMPTS:
+                part.unlink(missing_ok=True)
+                sys.exit(f'{url}: {error}' + ('' if permanent else '. Check the connection and run it again.'))
+            wait = 5 * 2 ** (attempt - 1)
+            log(f'  {error}; trying again in {wait} s ({attempt} of {DOWNLOAD_ATTEMPTS} attempts failed)')
+            time.sleep(wait)
+    actual = file_hash(part, algorithm)
+    if digest and actual != digest:
+        part.unlink()
+        sys.exit(
+            f'{url}: {algorithm.upper()} {actual}, expected {digest}. The download is corrupt or not the pinned file.'
+        )
+    part.replace(destination)
+    return destination
+
+
+DOWNLOAD_ATTEMPTS = 5
+
+
+def fetch(url, part: Path):
+    """One download attempt: url into part, from the start."""
+    import urllib.request
+
     request = urllib.request.Request(url, headers={'User-Agent': 'drifter-vita-setup'})
     with urllib.request.urlopen(request, timeout=60) as response, part.open('wb') as out:
         total = int(response.headers.get('Content-Length') or 0)
@@ -133,14 +165,6 @@ def download(url, destination: Path, digest: str):
                 print(f'\r  {done >> 20} of {total >> 20} MB', end='', flush=True)
     if total and sys.stdout.isatty():
         print()
-    actual = file_hash(part, algorithm)
-    if actual != digest:
-        part.unlink()
-        sys.exit(
-            f'{url}: {algorithm.upper()} {actual}, expected {digest}. The download is corrupt or not the pinned file.'
-        )
-    part.replace(destination)
-    return destination
 
 
 def file_hash(path: Path, algorithm='sha256'):

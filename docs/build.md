@@ -41,7 +41,7 @@ The setup script installs what is missing and skips what is already there, so yo
 - installs the Unity 2018.2.19f1 editor from Unity's CDN into `%LOCALAPPDATA%\Unity\Editors\2018.2.19f1`, and with `--vita` the editor's PS Vita module;
 - downloads AssetRipper 2.0.0 into `tools/external/assetripper-2.0.0`, and Mono.Cecil from NuGet;
 - finds the game in your Steam libraries, and offers to set `DRIFTER_GAME` if it is not in Steam's default folder;
-- with `--vita`, installs Sony's PS Vita SDK (downloaded from archive.org, or your copy with `--vita-sdk`) and its Target Manager Server and Publishing Tools, checks them and sets `SCE_PSP2_SDK_DIR` and `SCE_ROOT_DIR` for your user;
+- with `--vita`, installs Sony's PS Vita SDK (downloaded from archive.org, or your copy with `--vita-sdk`), checks it and sets `SCE_PSP2_SDK_DIR` for your user; with `--vita --unity`, also its Target Manager Server and Publishing Tools, which only the editor's build needs, and sets `SCE_ROOT_DIR`;
 - starts the editor once in batch mode to check that it runs (see [The Unity license](#the-unity-license));
 - ends with the doctor's checklist (see [Checking the setup](#checking-the-setup)).
 
@@ -68,9 +68,9 @@ With `--vita` and no SDK on the machine (none in `SCE_PSP2_SDK_DIR`, `C:\vitasdk
 
 - the version in `target\include\sdk_version.h`: 3.570 or later;
 - the tools Unity looks for before a build: `psp2snc`, `psp2ld`, `arm-eabi-as`, `psp2snarl` and `psp2bin` in `host_tools\build\bin`, and `psp2psarc` in `host_tools\bin`;
-- Target Manager Server's `psp2ctrl` and `psp2run` and Publishing Tools' `psp2pubcmd`, in `PSP2\Tools` under `SCE_ROOT_DIR`, usually `C:\Program Files (x86)\SCE`. If they are missing, the script offers to run their installers (`TMServer-*.msi` and `PublishingTools-*.msi`) from the SDK folder, or downloads them from the same archive.org item when the folder lacks them. Publishing Tools needs .NET Framework 3.5, which a new Windows has turned off; the script turns it on first.
+- with `--unity` only (the editor's build needs them, the default build doesn't): Target Manager Server's `psp2ctrl` and `psp2run` and Publishing Tools' `psp2pubcmd`, in `PSP2\Tools` under `SCE_ROOT_DIR`, usually `C:\Program Files (x86)\SCE`. If they are missing, the script offers to run their installers (`TMServer-*.msi` and `PublishingTools-*.msi`) from the SDK folder, or downloads them from the same archive.org item when the folder lacks them. Publishing Tools needs .NET Framework 3.5, which a new Windows has turned off; the script turns it on first.
 
-It sets `SCE_PSP2_SDK_DIR` to the SDK folder and `SCE_ROOT_DIR` to the SCE folder for your user and tells Windows, so new shells see them, Git Bash included. Shells that were already open don't, but the tools read these two, `DRIFTER_GAME` and `DRIFTER_VITA_HOST`, from the registry when their shell lacks them.
+It sets `SCE_PSP2_SDK_DIR` to the SDK folder (and with `--unity`, `SCE_ROOT_DIR` to the SCE folder) for your user and tells Windows, so new shells see them, Git Bash included. Shells that were already open don't, but the tools read these two, `DRIFTER_GAME` and `DRIFTER_VITA_HOST`, from the registry when their shell lacks them.
 
 ### The Unity license
 
@@ -111,7 +111,7 @@ These are the steps the script takes, if you prefer to do them yourself:
 - Unity **2018.2.19f1**: `UnitySetup64-2018.2.19f1.exe /S /D=%LOCALAPPDATA%\Unity\Editors\2018.2.19f1` ([installer](https://download.unity3d.com/download_unity/06990f28ba00/Windows64EditorInstaller/UnitySetup64-2018.2.19f1.exe)).
 - For IL2CPP: the Windows IL2CPP module ([installer](https://download.unity3d.com/download_unity/06990f28ba00/TargetSupportInstaller/UnitySetup-Windows-IL2CPP-Support-for-Editor-2018.2.19f1.exe)) with `/S /D=%LOCALAPPDATA%\Unity\Editors\2018.2.19f1`, and Visual Studio 2022 Build Tools with "Desktop development with C++".
 - For the Vita: the PS Vita module, `UnitySetup-Playstation-Vita-Support-for-Editor-2018.2.19f1.exe`, with the same `/S /D=...`. Unity no longer serves it; a copy is at [archive.org/details/unitypsvitasupport](https://archive.org/details/unitypsvitasupport). Check that the installer's Authenticode signature is Unity Technologies' before you run it.
-- For the Vita: Sony's PS Vita SDK 3.570 or later with Target Manager Server and Publishing Tools, and `SCE_PSP2_SDK_DIR` and `SCE_ROOT_DIR` set to their folders (for example `C:\vitasdk\PSVITA\sdk` and `C:\Program Files (x86)\SCE`). The Publishing Tools installer needs .NET Framework 3.5: turn it on in "Turn Windows features on or off", or with `DISM /Online /Enable-Feature /FeatureName:NetFx3 /All` as administrator.
+- For the Vita: Sony's PS Vita SDK 3.570 or later, with `SCE_PSP2_SDK_DIR` set to its folder (for example `C:\vitasdk\PSVITA\sdk`). For builds with `--unity`, also Target Manager Server and Publishing Tools, with `SCE_ROOT_DIR` set to their folder (for example `C:\Program Files (x86)\SCE`). The Publishing Tools installer needs .NET Framework 3.5: turn it on in "Turn Windows features on or off", or with `DISM /Online /Enable-Feature /FeatureName:NetFx3 /All` as administrator.
 - For the Vita: a console on HENkaku/Ensō with [VitaShell](https://github.com/TheOfficialFloW/VitaShell). To push updates from the PC, set `DRIFTER_VITA_HOST` to the console's address on your network. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional (see below).
 
 The pipeline fetches the rest itself on its first run: Mono.Cecil 0.10.0-beta6 from NuGet (it builds the assembly rewriter with it), a .NET 8 SDK, the upstream PostProcessing package, and USCSandbox at a pinned commit. It compiles its C# helpers with the .NET Framework 4 compiler that ships with Windows.
@@ -139,7 +139,7 @@ uv run tools/downgrade/pipeline.py all --platform vita
 uv run tools/downgrade/pipeline.py package
 ```
 
-`all --platform vita` assembles `work/drifter-2018.2.19f1-vita` and builds the player into `builds/drifter-2018.2.19f1-vita/`, without running the Unity editor ([pure.md](pure.md)). A rebuild takes about 5 minutes. `package` turns the build into `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page.
+`all --platform vita` assembles `work/drifter-2018.2.19f1-vita` and builds the player into `builds/drifter-2018.2.19f1-vita/`, without running the Unity editor ([builder.md](builder.md)). A rebuild takes about 5 minutes. `package` turns the build into `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page.
 
 To build with the Unity editor instead, add `--unity` to both commands. The player goes to `builds/drifter-2018.2.19f1-vita-unity/` and the VPK to `builds/drifter-2018.2.19f1-vita-unity.vpk`. This needs a license. The editor converts the textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)).
 

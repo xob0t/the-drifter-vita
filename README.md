@@ -6,11 +6,9 @@ There are no game files in this repository. You bring your own Steam copy, and t
 
 ## Where it stands
 
-It runs well. Every room loads on the console without crashing, and most rooms hold a steady 60 fps, the rainy and watery ones included. Moving between rooms takes 2 to 3 seconds.
+It runs well. Every room loads, and most hold a steady 60 fps; a few busy spots dip below that.
 
-The rough spot is walking around the cemetery, where the frame rate drops to the mid-40s. The cost there is the game's own logic, which is hard to trim without changing how the game plays.
-
-The CRT filter is off by default. It costs about 15 fps on the Vita, so it's there if you want the look and don't mind the hit. Turn it on in Options, or with Select + R.
+The CRT filter is off by default because it's expensive on the Vita. Turn it on in Options, or with Select + R.
 
 ## Building
 
@@ -23,7 +21,7 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
    winget install Git.Git
    ```
 
-2. Clone this repository. `tools/setup.py` installs the rest: the Unity 2018.2.19f1 editor with its PS Vita module, AssetRipper and the PS Vita SDK with its Target Manager Server and Publishing Tools.
+2. Clone this repository. `tools/setup.py` installs the rest: the Unity 2018.2.19f1 editor with its PS Vita module, AssetRipper and the PS Vita SDK.
 
    ```powershell
    uv run tools/setup.py --vita                # or: --vita-sdk <your SDK archive or folder>
@@ -40,9 +38,9 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
 
    The VPK is `builds/drifter-2018.2.19f1-vita.vpk`.
 
-The build doesn't run the Unity editor, so you don't need a Unity license. It only reads files from the editor's installation ([docs/pure.md](docs/pure.md)). A rebuild takes about 5 minutes. The first build takes longer, because it encodes the game's audio and compiles its shaders.
+The build doesn't run the Unity editor, so you don't need a Unity license. It only reads files from the editor's installation ([docs/builder.md](docs/builder.md)). A rebuild takes about 5 minutes. The first build takes longer, because it encodes the game's audio and compiles its shaders.
 
-To build with the Unity editor instead, add `--unity` to both commands; the VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
+To build with the Unity editor instead, run `uv run tools/setup.py --vita --unity` once (it adds the SDK's Target Manager Server and Publishing Tools), then add `--unity` to both build commands; the VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
 
 Install the VPK with VitaShell. For later builds you don't have to reinstall: start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
 
@@ -74,7 +72,7 @@ The repository holds only the recipe. You run it on the copy of The Drifter you 
 | [docs/parity.md](docs/parity.md)     | The test probe and tools, and how to check a change                             |
 | [docs/switches.md](docs/switches.md) | Every `-compat-*` switch with its default on Windows and on the Vita            |
 | [docs/vitalike.md](docs/vitalike.md) | Measuring CPU costs on a PC slowed to the Vita's speed                          |
-| [docs/pure.md](docs/pure.md)         | How the Vita build works without the Unity editor, and how it compares          |
+| [docs/builder.md](docs/builder.md)         | How the Vita build works without the Unity editor, and how it compares          |
 
 ## License
 

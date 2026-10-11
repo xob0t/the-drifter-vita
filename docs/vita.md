@@ -1,6 +1,6 @@
 # Vita
 
-Unity's own PS Vita build target, with the Unity 2018.2.19f1 PS Vita build module and Sony's PS Vita SDK 3.570 and tools, which are not part of this repository; `tools/setup.py --vita` downloads them from archive.org. `SCE_PSP2_SDK_DIR` and `SCE_ROOT_DIR` must point at the SDK and the SCE tools.
+Unity's own PS Vita build target, with the Unity 2018.2.19f1 PS Vita build module and Sony's PS Vita SDK 3.570 and tools, which are not part of this repository; `tools/setup.py --vita` downloads them from archive.org. `SCE_PSP2_SDK_DIR` must point at the SDK; an editor build (`--unity`) also needs `SCE_ROOT_DIR` to point at the SCE tools.
 
 ```powershell
 uv run tools/downgrade/pipeline.py project --platform vita

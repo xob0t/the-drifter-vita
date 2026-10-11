@@ -476,8 +476,58 @@ def check_visual_cpp():
     )
 
 
-def check_vita_sdk():
-    """The PS Vita SDK and the Target Manager tools, through the variables Unity reads."""
+# The builder's native packages (quicktex's encoders) are built with Visual Studio 2022 17.10 or later and
+# crash in an older msvcp140.dll, such as the 2015 runtime (14.0.23026) the Unity 2018 installer brings.
+VC_RUNTIME_MIN = (14, 40)
+VC_REDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+
+
+def file_version(path: Path):
+    """(major, minor, build, revision) from a DLL's version resource, or None."""
+    import ctypes
+    from ctypes import wintypes
+
+    version = ctypes.WinDLL('version')
+    size = version.GetFileVersionInfoSizeW(str(path), None)
+    if not size:
+        return None
+    data = ctypes.create_string_buffer(size)
+    if not version.GetFileVersionInfoW(str(path), 0, size, data):
+        return None
+    info, length = ctypes.c_void_p(), wintypes.UINT()
+    if not version.VerQueryValueW(data, '\\', ctypes.byref(info), ctypes.byref(length)):
+        return None
+    fixed = ctypes.cast(info, ctypes.POINTER(wintypes.DWORD * 4)).contents  # signature, struct version, MS, LS
+    return fixed[2] >> 16, fixed[2] & 0xFFFF, fixed[3] >> 16, fixed[3] & 0xFFFF
+
+
+def vc_runtime():
+    """The version of the 64-bit Visual C++ runtime (System32's msvcp140.dll), or None."""
+    path = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'msvcp140.dll'
+    return file_version(path) if path.exists() else None
+
+
+def check_vc_runtime():
+    found = vc_runtime()
+    shown = '.'.join(map(str, found)) if found else None
+    return Check(
+        'Visual C++ runtime',
+        bool(found) and found[:2] >= VC_RUNTIME_MIN,
+        f'{shown} (msvcp140.dll)'
+        if found and found[:2] >= VC_RUNTIME_MIN
+        else f'{shown or "none"}; the builder needs {".".join(map(str, VC_RUNTIME_MIN))} or later',
+        f'{SETUP} --vita (installs the current Visual C++ Redistributable)',
+    )
+
+
+def signer_is_microsoft(status, subject):
+    """Get-AuthenticodeSignature's Status and SignerCertificate.Subject of a Microsoft installer."""
+    return status == 'Valid' and re.search(r'(^|,\s*)O=Microsoft Corporation\s*(,|$)', subject, re.I) is not None
+
+
+def check_vita_sdk(unity=False):
+    """The PS Vita SDK and the Target Manager tools, through the variables Unity reads. Only the
+    editor's build (unity) needs Target Manager Server and Publishing Tools; the builder uses the SDK alone."""
     fix = f'{SETUP} --vita (downloads the SDK), or --vita-sdk <your SDK archive or folder>'
     checks = []
     sdk, stale = env('SCE_PSP2_SDK_DIR')
@@ -503,6 +553,7 @@ def check_vita_sdk():
                     f'{sdk} (version {shown})' + (' - set for new shells; this one does not see it' if stale else ''),
                 )
             )
+    fix = f'{SETUP} --vita --unity (installs Target Manager Server and Publishing Tools from the SDK)'
     root, stale = env('SCE_ROOT_DIR')
     if not root:
         found = sce_root()
@@ -525,6 +576,10 @@ def check_vita_sdk():
                 else str(root) + (' - set for new shells; this one does not see it' if stale else ''),
                 fix,
             )
+        )
+    if not unity:
+        checks[-1] = replace(
+            checks[-1], required=False, detail=checks[-1].detail + ' (only builds with --unity need it)'
         )
     return checks
 
@@ -644,12 +699,13 @@ def project_dir(version, platform):
     return WORK / (f'drifter-{version}' + ('-vita' if platform == 'vita' else ''))
 
 
-def module_checks(target, version):
-    """The editor module a target builds with and what its builds need besides."""
+def module_checks(target, version, unity=False):
+    """The editor module a target builds with and what its builds need besides (unity: a PS Vita build
+    by the editor, pipeline.py --unity)."""
     if target == 'il2cpp':
         return [check_editor(version, 'il2cpp'), check_visual_cpp()]
     if target == 'vita':
-        return [check_editor(version, 'vita'), *check_vita_sdk()]
+        return [check_editor(version, 'vita'), *check_vita_sdk(unity), check_vc_runtime()]
     return []
 
 
@@ -692,7 +748,7 @@ def checks_for(target, game: Path, version=TARGET, license=False):
     return checks
 
 
-def stage_checks(stage, platform, backend, game: Path, version=TARGET):
+def stage_checks(stage, platform, backend, game: Path, version=TARGET, unity=False):
     """The fast checks of one pipeline.py stage (no network, no editor start)."""
     target = target_of(platform, backend)
     project = project_dir(version, platform)
@@ -725,7 +781,7 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET):
                     'uv run tools/downgrade/pipeline.py project' + (' --platform vita' if platform == 'vita' else ''),
                 )
             )
-        checks += [check_editor(version), *module_checks(target, version)]
+        checks += [check_editor(version), *module_checks(target, version, unity)]
     if stage in ('rip', 'project', 'build', 'all'):
         checks.append(check_space(target, project.exists()))
     if stage == 'deploy':
@@ -737,11 +793,11 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET):
     return list(unique.values())
 
 
-def preflight(stage, platform, backend, game: Path, version=TARGET):
+def preflight(stage, platform, backend, game: Path, version=TARGET, unity=False):
     """Stop before a stage whose requirements are missing, with the checklist and the fixes. The SDK's
     variables set for new shells are taken into this one, for the editor the build starts."""
     adopt_env(('SCE_PSP2_SDK_DIR', 'SCE_ROOT_DIR'))
-    checks = stage_checks(stage, platform, backend, game, version)
+    checks = stage_checks(stage, platform, backend, game, version, unity)
     lines, failed = summarize(checks)
     if failed:
         print(f'pipeline.py {stage}: {failed} requirement(s) missing:', *lines, sep='\n', file=sys.stderr)

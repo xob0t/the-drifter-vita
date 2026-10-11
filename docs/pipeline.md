@@ -128,7 +128,7 @@ Compat `EffectSprites` draws the rain, LabSurface's sand and the bees as pages: 
 
 ## Build
 
-`build --platform vita` builds the PS Vita app without running the Unity editor, so it needs no license and imports nothing. It takes about 5 minutes and writes `builds/drifter-<version>-vita[-diag]`. See [pure.md](pure.md).
+`build --platform vita` builds the PS Vita app without running the Unity editor, so it needs no license and imports nothing. It takes about 5 minutes and writes `builds/drifter-<version>-vita[-diag]`. See [builder.md](builder.md).
 
 With `--unity`, and for every Windows player, `build` runs `DowngradeBuild.Build` (`unity/DowngradeBuild.cs`) in batch mode, with a local Unity Cache Server when Node.js is available. It fails if Unity reports success without writing the player or after an IL2CPP failure. For Windows it writes `steam_appid.txt`, so the player runs without Steam relaunching it. A Vita editor build goes to its own `-unity` folder. `package` and `deploy` are in [vita.md](vita.md).
 
