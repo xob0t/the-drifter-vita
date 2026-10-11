@@ -6,11 +6,9 @@ There are no game files in this repository. You bring your own Steam copy, and t
 
 ## Where it stands
 
-It runs well. Every room loads on the console without crashing, and most rooms hold a steady 60 fps, the rainy and watery ones included. Moving between rooms takes 2 to 3 seconds.
+It runs well. Every room loads, and most hold a steady 60 fps; a few busy spots dip below that.
 
-The rough spot is walking around the cemetery, where the frame rate drops to the mid-40s. The cost there is the game's own logic, which is hard to trim without changing how the game plays.
-
-The CRT filter is off by default. It costs about 15 fps on the Vita, so it's there if you want the look and don't mind the hit. Turn it on in Options, or with Select + R.
+The CRT filter is off by default because it's expensive on the Vita. Turn it on in Options, or with Select + R.
 
 ## Building
 
