@@ -3,11 +3,13 @@
 uv run python -m unittest discover tools/downgrade/tests
 """
 
+import hashlib
 import importlib.util
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
@@ -90,7 +92,10 @@ class Steam(unittest.TestCase):
             (data / 'globalgamemanagers').write_bytes(bytes(48) + doctor.SOURCE_VERSION.encode() + bytes(16))
             self.assertIn('Assembly-CSharp', doctor.check_game(game).detail)
             (data / 'Managed' / 'Assembly-CSharp.dll').write_bytes(b'')
-            self.assertTrue(doctor.check_game(game).ok)
+            self.assertIn('another release', doctor.check_game(game).detail)
+            empty = hashlib.sha256(b'').hexdigest()
+            with mock.patch.dict(doctor.GAME_CODE, {empty: 'Steam'}):
+                self.assertTrue(doctor.check_game(game).ok)
 
 
 class VitaSdk(unittest.TestCase):
@@ -135,7 +140,6 @@ class VitaSdk(unittest.TestCase):
     def test_our_sdk(self):
         """Only a folder setup created or filled is marked; pipeline.py clean deletes what it lists."""
         from types import SimpleNamespace
-        from unittest import mock
 
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp) / 'mine' / 'sdk'

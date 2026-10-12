@@ -6,7 +6,7 @@ The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run buil
 
 ## 1. Set up
 
-1. Install The Drifter from Steam or GOG, and these two tools:
+1. Install The Drifter from Steam or GOG, updated to the current release, and these two tools:
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -190,7 +190,8 @@ A project assembled with `--diag` must be built with `--diag` too. Run the `proj
 ## When a stage fails
 
 - **Before any stage**: "requirement(s) missing" lists what the stage lacks, with the command that fixes each item.
+  For The Drifter, "another release of the game" means its code (`TheDrifter_Data/Managed/Assembly-CSharp.dll`) is neither the current Steam release's nor GOG's 1.1.5, which the rules are written for. Update the game, or have Steam verify its files.
 - **`rip`**: "AssetRipper did not start" or "produced no project". Check the AssetRipper folder and `artifacts/downgrade/assetripper.log`.
-- **`project`**: a rule found the game data different from what it expects and stops with the file and the reason. This happens with another version of the game. The rules are written for the current Steam release. GOG's 1.1.5 has the same data; only Steam's restart check is missing from its code.
+- **`project`**: a rule found the game data different from what it expects and stops with the file and the reason. This happens with another version of the game that got past the game check (with `--skip-checks`, for example). The rules are written for the current Steam release. GOG's 1.1.5 has the same data; only Steam's restart check is missing from its code.
 - **`build`**: the full Unity log is in `artifacts/downgrade/build-<version>-<platform>-<backend>[-diag].log`, and the pipeline prints its errors. If IL2CPP fails on the Vita, check the SDK with `uv run tools/setup.py doctor --target vita`. A good build still counts about 670 errors in its summary (671 on Windows, 675 on the Vita), so compare with that rather than with zero.
 - **`deploy`** and `vita.py`: "Set DRIFTER_VITA_HOST" means the console's address is not set.

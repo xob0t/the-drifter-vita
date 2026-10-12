@@ -35,6 +35,7 @@ from common import (
     default_game,
     editor_data,
     env,
+    file_hash,
 )
 
 SETUP = 'uv run tools/setup.py'
@@ -122,6 +123,12 @@ GAME_EXE = 'TheDrifter.exe'
 # The game's GOG product ID, and the folder GOG installs it in by default.
 GOG_ID = '1629486561'
 GOG_GAME = Path(r'C:\GOG Games\The Drifter')
+# The game code the rules are written for, by the SHA-256 of TheDrifter_Data/Managed/Assembly-CSharp.dll:
+# the current Steam release, and GOG's 1.1.5 (the same code without Steam's restart check).
+GAME_CODE = {
+    'fc939732d5d9c86a187352a43f60cbc1fefe17bc79ea7d277c9de8e6c51ae334': 'Steam',
+    '87860bbb5b316d6ee67a5106baa12f3536002e4ef56d7e1e24926bb589407d91': 'GOG 1.1.5',
+}
 
 # Where setup.py extracts an SDK archive by default; the SDK is its sdk folder.
 VITA_SDK_FOLDER = Path(r'C:\vitasdk')
@@ -486,9 +493,19 @@ def check_game(game: Path):
         version = None
     if version != SOURCE_VERSION:
         return Check(name, False, f'{game}: built with Unity {version or "?"}, the rules expect {SOURCE_VERSION}', fix)
-    if not (data / 'Managed' / 'Assembly-CSharp.dll').exists():
+    code = data / 'Managed' / 'Assembly-CSharp.dll'
+    if not code.exists():
         return Check(name, False, f'{game}: no TheDrifter_Data/Managed/Assembly-CSharp.dll', fix)
-    return Check(name, True, f'{game} (Unity {version})')
+    release = GAME_CODE.get(file_hash(code))
+    if release is None:
+        return Check(
+            name,
+            False,
+            f"{game}: another release of the game (its Assembly-CSharp.dll is neither Steam's nor GOG's "
+            'current one); the rules are written for those',
+            'update The Drifter in Steam or GOG, or have Steam verify its files',
+        )
+    return Check(name, True, f'{game} ({release}, Unity {version})')
 
 
 def check_assetripper():
