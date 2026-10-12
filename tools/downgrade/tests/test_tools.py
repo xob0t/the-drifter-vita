@@ -614,6 +614,15 @@ class Tools(unittest.TestCase):
         black, grey = Image.new('RGB', (4, 2)), Image.new('RGB', (8, 4), (10, 20, 30))
         self.assertEqual(capture.mean_difference(black, grey), 20.0)
 
+    def test_remove_tree(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'a'
+            (folder / 'b').mkdir(parents=True)
+            (folder / 'b' / 'pack').write_bytes(b'x')
+            os.chmod(folder / 'b' / 'pack', 0o444)  # read-only, as Git's object files
+            common.remove_tree(folder)
+            self.assertFalse(folder.exists())
+
     def test_apply_patch(self):
         patch = (
             'A comment.\n\n'

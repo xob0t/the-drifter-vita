@@ -32,16 +32,15 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
 
    ```powershell
    uv run tools/downgrade/pipeline.py all --platform vita
-   uv run tools/downgrade/pipeline.py package
    ```
 
-   The VPK is `builds/drifter-2018.2.19f1-vita.vpk`.
+   The VPK is `builds/drifter-2018.2.19f1-vita.vpk`. The build then deletes its work files and keeps only the VPK.
 
-The build doesn't need Unity installed or a Unity license ([docs/builder.md](docs/builder.md)). A rebuild takes about 5 minutes. The first build takes longer, because it encodes the game's audio and compiles its shaders.
+The build doesn't need Unity installed or a Unity license ([docs/builder.md](docs/builder.md)). It takes about 17 minutes. Add `--keep` to keep the work files (about 4 GB): a rebuild then takes about 5 minutes.
 
-To build with the Unity editor instead, run `uv run tools/setup.py --vita --unity` once (it installs the editor with its PS Vita module, and the SDK's Target Manager Server and Publishing Tools), then add `--unity` to both build commands; the VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
+To build with the Unity editor instead, run `uv run tools/setup.py --vita --unity` once (it installs the editor with its PS Vita module, and the SDK's Target Manager Server and Publishing Tools), then add `--unity` to the build command. It keeps its work files, since they hold the editor's slow import. The VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
 
-Install the VPK with VitaShell. For later builds you don't have to reinstall: start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
+Install the VPK with VitaShell. For later builds you don't have to reinstall: build with `--keep`, start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
 
 You don't need a Windows player for any of this. It's for testing: `uv run tools/downgrade/pipeline.py all` builds one into `builds/drifter-2018.2.19f1/`.
 

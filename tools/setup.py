@@ -695,6 +695,8 @@ def main():
     if args.dry_run:
         print('Dry run: nothing was changed.')
         return
+    if DOWNLOADS.exists() and not any(DOWNLOADS.iterdir()):
+        DOWNLOADS.rmdir()
     code = doctor.main(['--target', target], setup.license_check)
     for note in setup.notes:
         print('To do: ' + note)

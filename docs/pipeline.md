@@ -1,6 +1,6 @@
 # What the pipeline does
 
-`tools/downgrade/pipeline.py` runs five stages: `rip`, `project` and `build` (`all` runs these in order), and for the Vita `package` and `deploy`. This page says what each rule does, why, and where its code is. The comment at each rewriter pass and Compat class gives the full argument for why a rule returns what the original returns. Switch defaults are in [switches.md](switches.md), the probe's checks in [parity.md](parity.md), and the Vita's own rules in [vita.md](vita.md#rules-specific-to-the-vita).
+`tools/downgrade/pipeline.py` runs five stages: `rip`, `project` and `build` (`all` runs these in order), and for the Vita `package` and `deploy`. For the Vita, `all` also packages the VPK and then, unless `--keep` or `--unity`, deletes the work files and the unpacked build. This page says what each rule does, why, and where its code is. The comment at each rewriter pass and Compat class gives the full argument for why a rule returns what the original returns. Switch defaults are in [switches.md](switches.md), the probe's checks in [parity.md](parity.md), and the Vita's own rules in [vita.md](vita.md#rules-specific-to-the-vita).
 
 ## Where the code is
 
