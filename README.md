@@ -12,36 +12,33 @@ The CRT filter is off by default because it's expensive on the Vita. Turn it on 
 
 ## Building
 
-You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō with VitaShell. Setup downloads Sony's PS Vita SDK 3.570 from archive.org, or takes your own copy.
+You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō with VitaShell.
 
-1. Install [uv](https://docs.astral.sh/uv/).
+1. Install [uv](https://docs.astral.sh/uv/): open PowerShell from the Start menu and run
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
-2. Download this repository (Code → Download ZIP) and extract it, or clone it. In its folder, `tools/setup.py` gets the rest: AssetRipper, the PS Vita SDK, and the files the build needs from Unity 2018.2.19f1's installers. It extracts those files and doesn't install Unity.
+2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), right-click it and choose **Extract All**.
+
+3. Open the extracted `the-drifter-vita` folder, right-click in it, choose **Open in Terminal** (on Windows 10: Shift + right-click, **Open PowerShell window here**), and run:
 
    ```powershell
-   uv run tools/setup.py --vita                # or: --vita-sdk <your SDK archive or folder>
-   ```
-
-3. Check the setup with `uv run tools/setup.py doctor --target vita`.
-
-4. Build:
-
-   ```powershell
-   uv run tools/downgrade/pipeline.py all --platform vita
-   uv run tools/downgrade/pipeline.py package
+   uv run build.py
    ```
 
    The VPK is `builds/drifter-2018.2.19f1-vita.vpk`.
 
-The build doesn't need Unity installed or a Unity license ([docs/builder.md](docs/builder.md)). A rebuild takes about 5 minutes. The first build takes longer, because it encodes the game's audio and compiles its shaders.
+It takes about 25 minutes. It downloads what the build needs: Sony's PS Vita SDK 3.570 from archive.org, and files from Unity 2018.2.19f1's installers. It doesn't install Unity or need a Unity license ([docs/builder.md](docs/builder.md)). Once the VPK is made, it deletes its work files and the tools it downloaded; the Python packages (`.venv`) and the logs (`artifacts/`) stay.
 
-To build with the Unity editor instead, run `uv run tools/setup.py --vita --unity` once (it installs the editor with its PS Vita module, and the SDK's Target Manager Server and Publishing Tools), then add `--unity` to both build commands; the VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
+- `--vita-sdk <archive or folder>` uses your own copy of the SDK.
+- `--game <folder>` reads the game from another folder than Steam's default.
+- `--keep` keeps the work files and the tools, about 6 GB. A rebuild then takes about 5 minutes.
 
-Install the VPK with VitaShell. For later builds you don't have to reinstall: start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
+`uv run build.py --unity` builds with the Unity editor instead. It installs the editor with its PS Vita module, and the SDK's Target Manager Server and Publishing Tools, and keeps its files, since the project holds the editor's slow import. The VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
+
+Install the VPK with VitaShell. For later builds you don't have to reinstall: build with `--keep`, start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
 
 You don't need a Windows player for any of this. It's for testing: `uv run tools/downgrade/pipeline.py all` builds one into `builds/drifter-2018.2.19f1/`.
 

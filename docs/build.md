@@ -2,7 +2,7 @@
 
 The pipeline turns your installed copy of The Drifter into a Unity 2018.2 project and builds a Windows player or a PS Vita app from it. It reads the game and never changes it. Everything it makes goes to `work/` (exports and projects), `builds/` (players and VPKs) and `artifacts/` (logs).
 
-The steps below are for Windows 10 or 11, x64.
+The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run build.py` in the repository runs them all: setup (step 1, `tools/setup.py --vita`), the build (step 3, `pipeline.py all --platform vita`) and the clean-up (`pipeline.py clean`, below). It passes on `--game`, `--vita-sdk` and `--unity`. `--keep`, and `--unity`, skip the clean-up.
 
 ## 1. Set up
 
@@ -15,7 +15,7 @@ The steps below are for Windows 10 or 11, x64.
 
    Node.js is optional, but it cuts a first Vita build from about 100 minutes to about 40 (see [Node.js](#nodejs)). Open a new terminal afterwards, so it finds them.
 
-2. Download the repository (Code → Download ZIP on GitHub) and extract it, or clone it. In its folder, run the setup script for your target:
+2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), the latest release, and extract it, or clone the repository. In its folder, run the setup script for your target:
 
    ```powershell
    uv run tools/setup.py                                         # Windows player
@@ -132,16 +132,17 @@ Add `--backend il2cpp` for an IL2CPP player (`builds/drifter-2018.2.19f1-il2cpp/
 
 ```powershell
 uv run tools/downgrade/pipeline.py all --platform vita
-uv run tools/downgrade/pipeline.py package
 ```
 
-`all --platform vita` assembles `work/drifter-2018.2.19f1-vita` and builds the player into `builds/drifter-2018.2.19f1-vita/`, without running the Unity editor ([builder.md](builder.md)). A rebuild takes about 5 minutes. `package` turns the build into `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page.
+`all --platform vita` assembles `work/drifter-2018.2.19f1-vita`, builds the player into `builds/drifter-2018.2.19f1-vita/` without running the Unity editor ([builder.md](builder.md)), and packages it as `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page. It takes about 17 minutes.
 
-To build with the Unity editor instead, add `--unity` to both commands. The player goes to `builds/drifter-2018.2.19f1-vita-unity/` and the VPK to `builds/drifter-2018.2.19f1-vita-unity.vpk`. This needs a license. The editor converts the textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)).
+`build.py` then runs `pipeline.py clean`, which deletes about 6 GB: the export, the project, the builder's caches, the unpacked build, and the tools setup installed. Those are `tools/external`'s downloads, and the files setup extracted or copied the PS Vita SDK into, which it lists in `drifter-setup.txt` beside them, with `SCE_PSP2_SDK_DIR`. It renames each to `<name>.deleting` first, so a tool a program still holds stays whole, and setup finishes what an interrupted clean left. It keeps the VPK, the logs in `artifacts/`, the Python packages (`.venv`), other builds, an SDK setup didn't put there, and a project the editor imported (`--unity`). To build again, run setup again, or `uv run build.py`. The other stages only replace their own outputs: build with `--keep` (or run the stages yourself) for 5-minute rebuilds and for `vita.py sync`, which updates an installed app from the unpacked build.
+
+To build with the Unity editor instead, add `--unity`. The player goes to `builds/drifter-2018.2.19f1-vita-unity/` and the VPK to `builds/drifter-2018.2.19f1-vita-unity.vpk`. This build keeps its work files, since the project holds the editor's import. This needs a license. The editor converts the textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)).
 
 Install the VPK in VitaShell. `pipeline.py deploy` uploads it to `ux0:data/` over VitaShell's FTP server, or copy it yourself. The app uses the +109 MB memory expansion mode, which the console reads at installation.
 
-After the first install you don't need to reinstall. Start VitaShell's FTP server (press Select in VitaShell) and run `uv run tools/downgrade/vita.py sync`: it uploads only the files a rebuild changed. A change to the app's `param.sfo` needs a full install again from a new VPK.
+After the first install you don't need to reinstall. Build with `--keep`, start VitaShell's FTP server (press Select in VitaShell) and run `uv run tools/downgrade/vita.py sync`: it uploads only the files a rebuild changed. A change to the app's `param.sfo` needs a full install again from a new VPK.
 
 With [vitacompanion](https://github.com/devnoname120/vitacompanion) running on the console, its FTP server works while you're in the game, and `vita.py run` quits the game, syncs and starts it again. `vita.py install`, `perf` and `shot` use commands the released vitacompanion doesn't have; they say so and stop. [vita.md](vita.md) describes the console tools.
 
@@ -170,7 +171,8 @@ Without Node.js, Unity imports one asset at a time, and the audio is nearly all 
 | Option | Effect |
 | --- | --- |
 | `rip`, `project`, `build` | Run one stage. `all` runs the three in order. |
-| `package`, `deploy` | Vita only: make the VPK, or make it and upload it. |
+| `package`, `deploy` | Vita only: make the VPK (`all --platform vita` also does), or make it and upload it. |
+| `clean` | Vita only: delete the work files, the unpacked build and the tools setup installed, leaving the VPK. `build.py` runs it last. |
 | `--platform vita` | Build the PS Vita app (always IL2CPP). |
 | `--unity` | Vita: build (or package, or deploy) the app with the Unity editor instead of without it. The output folder gets `-unity`. Windows players always use the editor. |
 | `--backend mono\|il2cpp` | Windows scripting backend, `mono` by default. |

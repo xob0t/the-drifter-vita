@@ -132,6 +132,33 @@ class VitaSdk(unittest.TestCase):
             found = [p.relative_to(root).as_posix() for p in setup.msi_files([root, root / 'Tools'], depth=3)]
             self.assertEqual(found, ['Tools/TMServer-1.msi', 'a/b/c/PublishingTools.MSI'])
 
+    def test_our_sdk(self):
+        """Only a folder setup created or filled is marked; pipeline.py clean deletes what it lists."""
+        from types import SimpleNamespace
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / 'mine' / 'sdk'
+            for tool in doctor.SDK_TOOLS:
+                (source / tool).parent.mkdir(parents=True, exist_ok=True)
+                (source / tool).write_bytes(b'')
+            for name, ours in (('new', True), ('busy', False)):
+                destination = Path(temp) / name
+                if not ours:
+                    destination.mkdir()
+                    (destination / 'other.txt').write_bytes(b'')
+                args = SimpleNamespace(vita_sdk_dir=str(destination), dry_run=False)
+                with mock.patch('builtins.print'):
+                    sdk = setup.Setup(args).install_sdk(source.parent)
+                self.assertEqual((destination / setup.SDK_MARKER).exists(), ours)
+                with mock.patch.object(setup, 'setting', return_value=str(sdk)):
+                    self.assertEqual(setup.our_sdk(), destination if ours else None)
+                if ours:  # only what setup put there
+                    (destination / 'later.txt').write_bytes(b'')
+                    self.assertEqual(setup.sdk_parts(destination), ([destination / 'sdk'], True))
+            self.assertFalse(setup.setup_may_own(Path(Path(temp).anchor)))  # never a drive's root
+            self.assertTrue(setup.setup_may_own(Path(temp) / 'nothing-here-yet'))
+
     def test_downloads(self):
         self.assertEqual(set(doctor.SCE_INSTALLER_DOWNLOADS), set(doctor.SCE_INSTALLERS))
         for url, digest in [doctor.VITA_SDK_ZIP, *doctor.VITA_SDK_PATCHES, *doctor.SCE_INSTALLER_DOWNLOADS.values()]:

@@ -8,7 +8,10 @@ Stages, each runnable alone:
            shaders over AssetRipper's dummies, add the build script.
   build    Build the player. The PS Vita player is built without running Unity (tools/builder);
            --unity, and every Windows player, imports and builds it with the editor in batch mode.
-  package  PS Vita: turn the build into a VPK.
+  package  PS Vita: turn the build into a VPK. For the PS Vita, all also packages it.
+  clean    Delete the PS Vita build's work files, the unpacked build and the tools setup.py installed,
+           leaving the VPK; build.py runs it unless --keep or --unity. Run it on its own: the builder
+           keeps files of the tools open until its process ends.
   deploy   PS Vita: package, then upload the VPK to the console (DRIFTER_VITA_HOST, see common.py).
 
 The game installation is only read. Outputs go to work/, builds/ and artifacts/.
@@ -22,7 +25,9 @@ from their own modules.
 """
 
 import argparse
+import contextlib
 import hashlib
+import os
 import re
 import shutil
 import socket
@@ -68,13 +73,17 @@ from common import (
     VITA_HOST,
     WORK,
     YAML_FILES,
+    delete,
     editor_data,
+    finish_deleting,
     folder_meta,
     game_data,
     log,
     meta_guid,
     meta_of,
     mono_cecil,
+    registry_env,
+    remove_tree,
     run,
     stable_meta,
     vita_host,
@@ -728,6 +737,67 @@ def deploy_vita(vpk: Path):
     log(f'Uploaded to ux0:data/{vpk.name}; install it with VitaShell, then: launch {VITA_TITLE_ID}')
 
 
+def work_files(version):
+    """What all leaves besides the PS Vita VPK: the export, the project, the rules' and the builder's
+    work folders, and the unpacked build. A project the editor imported (pipeline.py build --unity, up
+    to 100 minutes) is kept."""
+    project = WORK / f'drifter-{version}-vita'
+    return [
+        WORK / f'rip-{version}',
+        *([] if (project / 'Library').exists() else [project]),
+        WORK / f'assemblies-{version}',
+        WORK / 'shaders',
+        WORK / 'upstream',
+        WORK / 'livearea',
+        WORK / 'builder',
+        build_dir(version, 'il2cpp', 'vita'),
+    ]
+
+
+def clean(version):
+    """Delete work_files and the tools setup.py installed (setup.installed_tools, and setup's copy of the
+    SDK with its SCE_PSP2_SDK_DIR), and say how much space that frees."""
+    sys.path.insert(0, str(HERE.parent))
+    import setup
+
+    log('Deleting the work files and the tools setup.py installed (about a minute)')
+    dotnet = EXTERNAL / 'dotnet' / 'dotnet.exe'
+    if dotnet.exists():  # build servers an older run left would hold the SDK's files
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            subprocess.run([str(dotnet), 'build-server', 'shutdown'], capture_output=True, timeout=60)
+    sdk = setup.our_sdk()
+    parts, created = setup.sdk_parts(sdk) if sdk else ([], False)
+    targets = work_files(version) + setup.installed_tools() + parts
+    finish_deleting(*{path.parent for path in targets})
+    deleted, left = 0, []
+    for path in targets:
+        size, kept = delete(path)
+        deleted, left = deleted + size, left + kept
+    if sdk and not any(p.exists() for p in parts):
+        remove_tree(sdk / setup.SDK_MARKER)
+        if created:
+            with contextlib.suppress(OSError):
+                sdk.rmdir()  # when nothing else is in it
+        # Only when it points into what was deleted, not at an SDK still in use.
+        value = registry_env('SCE_PSP2_SDK_DIR', 'user')
+        if value and any(inside(Path(value), part) for part in parts):
+            setup.remove_user_env('SCE_PSP2_SDK_DIR')
+    if EXTERNAL.exists() and not any(EXTERNAL.iterdir()):
+        EXTERNAL.rmdir()
+    log(f'Deleted the work files, the unpacked build and the tools setup.py installed ({deleted / 2**30:.1f} GB)')
+    if left:
+        shown = ', '.join(str(p) for p in left[:3]) + (f' and {len(left) - 3} more' if len(left) > 3 else '')
+        log(
+            f'{len(left)} are open in another program and stay: {shown}. To delete them later, close it and run: '
+            'uv run tools/downgrade/pipeline.py clean'
+        )
+
+
+def inside(path: Path, folder: Path):
+    path, folder = os.path.normcase(os.path.abspath(path)), os.path.normcase(os.path.abspath(folder))
+    return path == folder or path.startswith(folder.rstrip(os.sep) + os.sep)
+
+
 # ---------------------------------------------------------------- main
 
 
@@ -743,8 +813,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         'stage',
-        choices=['rip', 'project', 'build', 'all', 'package', 'deploy'],
-        help='package: make the Vita VPK; deploy: also upload it to the Vita (both imply --platform vita)',
+        choices=['rip', 'project', 'build', 'all', 'package', 'deploy', 'clean'],
+        help='package: make the Vita VPK; deploy: also upload it to the Vita (both imply --platform vita); '
+        "clean: delete the Vita build's work files and the tools setup.py installed, leaving the VPK",
     )
     parser.add_argument('--game', type=Path, default=DEFAULT_GAME)
     parser.add_argument('--version', default=TARGET, help='Unity 2018.2 patch release to target')
@@ -792,6 +863,9 @@ def main():
     args = parser.parse_args()
     if not args.version.startswith('2018.2.'):
         parser.error('the compatibility rules are written for Unity 2018.2')
+    if args.stage == 'clean':
+        clean(args.version)
+        return
     rip_dir = WORK / f'rip-{args.version}'
     if args.platform == 'vita' or args.stage in ('package', 'deploy'):
         args.platform, args.backend = 'vita', 'il2cpp'
@@ -841,7 +915,7 @@ def main():
             args.development,
             args.import_jobs,
         )
-    if args.stage in ('package', 'deploy'):
+    if args.stage in ('package', 'deploy') or (args.stage == 'all' and args.platform == 'vita'):
         vpk = package_vita(build_dir(args.version, 'il2cpp', 'vita', args.diag, unity))
         if args.stage == 'deploy':
             deploy_vita(vpk)

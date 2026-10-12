@@ -614,6 +614,67 @@ class Tools(unittest.TestCase):
         black, grey = Image.new('RGB', (4, 2)), Image.new('RGB', (8, 4), (10, 20, 30))
         self.assertEqual(capture.mean_difference(black, grey), 20.0)
 
+    def test_remove_tree(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'a'
+            (folder / 'b').mkdir(parents=True)
+            (folder / 'b' / 'pack').write_bytes(b'x')
+            os.chmod(folder / 'b' / 'pack', 0o444)  # read-only, as Git's object files
+            self.assertEqual(common.remove_tree(folder), (1, []))
+            self.assertFalse(folder.exists())
+            # A file another program has open stays, and so do its folders; the rest goes.
+            (folder / 'b').mkdir(parents=True)
+            (folder / 'b' / 'open').write_bytes(b'xy')
+            (folder / 'c').write_bytes(b'xyz')
+            with (
+                mock.patch.object(common, 'REMOVE_ATTEMPTS', 2),
+                (folder / 'b' / 'open').open('rb'),
+            ):
+                self.assertEqual(common.remove_tree(folder), (3, [folder / 'b' / 'open']))
+            self.assertTrue((folder / 'b' / 'open').exists())
+            self.assertFalse((folder / 'c').exists())
+
+    def test_remove_tree_links(self):
+        """A junction is removed, never what it points to."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as temp:
+            outside, folder = Path(temp) / 'outside', Path(temp) / 'a'
+            outside.mkdir()
+            (outside / 'keep').write_bytes(b'x')
+            folder.mkdir()
+            for link in (folder / 'link', Path(temp) / 'top-link'):
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(link), str(outside)], check=True, capture_output=True)
+            common.remove_tree(folder)
+            common.remove_tree(Path(temp) / 'top-link')
+            self.assertFalse(folder.exists() or (Path(temp) / 'top-link').exists())
+            self.assertTrue((outside / 'keep').exists())
+
+    def test_delete_whole(self):
+        """delete leaves a folder whole when a program has a file in it open, and finish_deleting clears
+        what an interrupted delete left."""
+        with tempfile.TemporaryDirectory() as temp:
+            tool = Path(temp) / 'tool'
+            (tool / 'bin').mkdir(parents=True)
+            (tool / 'tool.exe').write_bytes(b'x')
+            (tool / 'bin' / 'lib.dll').write_bytes(b'yz')
+            with mock.patch.object(common, 'REMOVE_ATTEMPTS', 2), (tool / 'bin' / 'lib.dll').open('rb'):
+                self.assertEqual(common.delete(tool), (0, [tool]))
+            self.assertTrue((tool / 'tool.exe').exists())
+            self.assertEqual(common.delete(tool), (3, []))
+            self.assertFalse(tool.exists())
+            (Path(temp) / 'old.deleting' / 'x').mkdir(parents=True)
+            common.finish_deleting(Path(temp))
+            self.assertEqual(list(Path(temp).iterdir()), [])
+
+    def test_work_files(self):
+        """pipeline.py clean keeps a project the editor imported (pipeline.py build --unity)."""
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(pipeline, 'WORK', Path(temp)):
+            project = Path(temp) / 'drifter-2018.2.19f1-vita'
+            self.assertIn(project, pipeline.work_files('2018.2.19f1'))
+            (project / 'Library').mkdir(parents=True)
+            self.assertNotIn(project, pipeline.work_files('2018.2.19f1'))
+
     def test_apply_patch(self):
         patch = (
             'A comment.\n\n'

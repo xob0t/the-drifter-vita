@@ -79,7 +79,7 @@ def uscsandbox():
     if exe.exists() and stamp.exists() and stamp.read_text() == digest:
         return exe
     dotnet = EXTERNAL / 'dotnet' / 'dotnet.exe'
-    if not dotnet.exists():
+    if not dotnet.exists() or not (dotnet.parent / 'sdk').exists():
         installer = EXTERNAL / 'dotnet-install.ps1'
         urllib.request.urlretrieve('https://dot.net/v1/dotnet-install.ps1', installer)
         run(
@@ -100,7 +100,8 @@ def uscsandbox():
     github_source('nesrak1/USCSandbox', USCSANDBOX_COMMIT, USCSANDBOX_SHA256, repo)
     for patch in patches:
         apply_patch(patch, repo)
-    run([dotnet, 'build', '-c', 'Release', repo / 'USCSandbox' / 'USCSandbox.csproj'])
+    # No build servers left running: they would hold the SDK's files, which pipeline.py clean deletes.
+    run([dotnet, 'build', '-c', 'Release', '--disable-build-servers', repo / 'USCSandbox' / 'USCSandbox.csproj'])
     stamp.write_text(digest)
     return exe
 

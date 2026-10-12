@@ -42,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'downgrade'))
 import doctor
 from common import (
+    ASSETRIPPER,
     CECIL,
     CECIL_SHA256,
     CECIL_URL,
@@ -53,11 +54,17 @@ from common import (
     TARGET,
     WORK,
     download,
+    finish_deleting,
     mono_cecil,
+    setting,
     unity_files,
 )
 
 DOWNLOADS = WORK / 'installers'
+# In a folder setup extracted or copied the PS Vita SDK into: what setup put there, which pipeline.py
+# clean deletes, and whether setup created the folder.
+SDK_MARKER = 'drifter-setup.txt'
+SDK_CREATED = '# setup created this folder'
 # How deep below the SDK's folder its Target Manager and Publishing Tools installers are looked for.
 INSTALLER_DEPTH = 4
 
@@ -342,16 +349,19 @@ class Setup:
         if existing:
             self.say('vita-sdk', f'already installed ({existing})')
             return existing
+        # A marker from an extraction that was interrupted still makes the folder setup's.
+        ours = setup_may_own(destination) or (destination / SDK_MARKER).exists()
+        created = not destination.exists() or (ours and sdk_parts(destination)[1])
+        if self.args.dry_run:
+            self.say('vita-sdk', f'would {"copy" if source.is_dir() else "extract"} {source} to {destination}')
+            return None
+        if ours:  # before extracting, so an interrupted extraction is known as setup's
+            destination.mkdir(parents=True, exist_ok=True)
+            write_sdk_marker(destination, created)
         if source.is_dir():
-            if self.args.dry_run:
-                self.say('vita-sdk', f'would copy {source} to {destination}')
-                return None
             self.say('vita-sdk', f'copying {source} to {destination}')
             shutil.copytree(source, destination, dirs_exist_ok=True)
         else:
-            if self.args.dry_run:
-                self.say('vita-sdk', f'would extract {source} to {destination}')
-                return None
             command = extract_command(source, destination, seven_zip(), windows_tar())
             self.say('vita-sdk', f'extracting {source.name} to {destination}')
             destination.mkdir(parents=True, exist_ok=True)
@@ -362,6 +372,8 @@ class Setup:
         sdk = doctor.find_sdk_root(destination)
         if sdk is None:
             sys.exit(f'--vita-sdk: no PS Vita SDK in {destination} after extracting (looked for {doctor.SDK_TOOLS[0]})')
+        if ours:
+            write_sdk_marker(destination, created)
         return sdk
 
     def validate_sdk(self, sdk: Path):
@@ -598,14 +610,85 @@ def run_elevated(program, arguments: str):
 def set_user_env(name, value):
     """Set a variable for the user (HKCU\\Environment) and tell running programs, so new shells,
     Git Bash included, see it."""
-    import ctypes
     import winreg
 
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Environment', 0, winreg.KEY_SET_VALUE) as key:
         winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
     os.environ[name] = value
+    environment_changed()
+
+
+def remove_user_env(name):
+    import contextlib
+    import winreg
+
+    with (
+        winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Environment', 0, winreg.KEY_SET_VALUE) as key,
+        contextlib.suppress(FileNotFoundError),
+    ):
+        winreg.DeleteValue(key, name)
+    os.environ.pop(name, None)
+    environment_changed()
+
+
+def environment_changed():
+    import ctypes
+
     result = ctypes.c_ulong()
     ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, 'Environment', 0x0002, 5000, ctypes.byref(result))
+
+
+def setup_may_own(destination: Path):
+    """Whether setup marks the SDK folder it extracts into as its own: only one it creates or fills, not a
+    drive's root. The marker lists what setup put there, which pipeline.py clean deletes and nothing else."""
+    resolved = destination.resolve()
+    return resolved.parent != resolved and (not destination.exists() or not any(destination.iterdir()))
+
+
+def our_sdk():
+    """The folder setup put the PS Vita SDK in (it has SDK_MARKER), when SCE_PSP2_SDK_DIR is in one."""
+    current = setting('SCE_PSP2_SDK_DIR')
+    if current:
+        return next((f for f in [Path(current), *Path(current).parents] if (f / SDK_MARKER).exists()), None)
+    return None
+
+
+def write_sdk_marker(folder: Path, created):
+    names = sorted(p.name for p in folder.iterdir() if p.name != SDK_MARKER)
+    (folder / SDK_MARKER).write_text(
+        '# Extracted by tools/setup.py; build.py (pipeline.py clean) deletes these once the VPK is made.\n'
+        + (SDK_CREATED + '\n' if created else '')
+        + ''.join(f'{name}\n' for name in names),
+        encoding='utf-8',
+    )
+
+
+def sdk_parts(folder: Path):
+    """(what setup put in folder, whether setup created it), as its SDK_MARKER says. A marker that
+    can't be read lists nothing."""
+    try:
+        lines = (folder / SDK_MARKER).read_text(encoding='utf-8', errors='replace').splitlines()
+    except OSError:
+        return [], False
+    names = [n for n in lines if n and not n.startswith('#') and n not in ('.', '..') and not set(n) & set('/\\:')]
+    return [folder / name for name in names], SDK_CREATED in lines
+
+
+def installed_tools():
+    """What setup.py and the pipeline install for the PS Vita build without the editor, which pipeline.py
+    clean deletes: tools/external's downloads. Not the Python packages (.venv), the Visual C++ runtime, or
+    --unity's installs; setup's copy of the SDK is sdk_parts(our_sdk())."""
+    return [
+        unity_files(TARGET),
+        EXTERNAL / '7-zip',
+        ASSETRIPPER.parent,
+        CECIL.parent,
+        EXTERNAL / 'dotnet',
+        EXTERNAL / 'dotnet-install.ps1',
+        EXTERNAL / 'downgrade-bin',
+        EXTERNAL / 'USCSandbox',
+        EXTERNAL / 'vita-parse-core',
+    ]
 
 
 def download_only(args):
@@ -664,11 +747,14 @@ def main():
         'the license check',
     )
     parser.add_argument('--skip-license-check', action='store_true', help='do not start the editor at the end')
+    parser.add_argument('--then-build', action='store_true', help=argparse.SUPPRESS)  # build.py builds next
     args = parser.parse_args()
     if args.vita_sdk:
         args.vita = True
     setup = Setup(args)
     target = 'vita' if args.vita else ('il2cpp' if args.il2cpp else 'windows')
+    if not args.dry_run:  # what an interrupted pipeline.py clean was deleting, so nothing half there is trusted
+        finish_deleting(EXTERNAL, WORK, ROOT / 'builds', Path(args.vita_sdk_dir or doctor.VITA_SDK_FOLDER))
     setup.python()
     # The PS Vita build reads Unity's files from its installers; the editor is installed only for the
     # builds that run it (--unity, and the Windows players).
@@ -695,13 +781,15 @@ def main():
     if args.dry_run:
         print('Dry run: nothing was changed.')
         return
+    if DOWNLOADS.exists() and not any(DOWNLOADS.iterdir()):
+        DOWNLOADS.rmdir()
     code = doctor.main(['--target', target], setup.license_check)
     for note in setup.notes:
         print('To do: ' + note)
-    if code == 0 and not setup.notes:
+    if code == 0 and not setup.notes and not args.then_build:
         platform = ' --platform vita' if args.vita else (' --backend il2cpp' if args.il2cpp else '')
         print(f'Next: uv run tools/downgrade/pipeline.py all{platform}')
-    sys.exit(code)
+    sys.exit(code or (1 if args.then_build and setup.notes else 0))  # build.py stops for the to-dos
 
 
 if __name__ == '__main__':

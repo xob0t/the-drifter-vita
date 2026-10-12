@@ -2,6 +2,7 @@
 shader_rules.py) and the other tools. Tools that import pipeline also reach the names pipeline.py
 imports from here as pipeline.<name>."""
 
+import contextlib
 import hashlib
 import os
 import re
@@ -200,18 +201,97 @@ def mono_cecil():
     return CECIL
 
 
+def remove_tree(folder: Path):
+    """Delete a folder or a file, read-only files included (Git's object files, for one). A link (a
+    symbolic link or a junction) is removed, never what it points to. A file another program holds (an
+    antivirus scan, a process still exiting) is tried again for a few seconds, then left. Returns
+    (bytes deleted, files left)."""
+    if is_link(folder):
+        return (0, []) if remove_path(folder, os.rmdir if folder.is_dir() else os.remove) else (0, [folder])
+    if not folder.is_dir():
+        size = folder.lstat().st_size
+        return (size, []) if remove_path(folder, os.remove) else (0, [folder])
+    deleted, left, folders = 0, [], []
+    for root, names, files in os.walk(folder):
+        root = Path(root)
+        folders.append(root)
+        for name in [n for n in names if is_link(root / n)]:
+            names.remove(name)  # not into it
+            if not remove_path(root / name, os.rmdir):
+                left.append(root / name)
+        for name in files:
+            path = root / name
+            size = path.lstat().st_size
+            if remove_path(path, os.remove):
+                deleted += size
+            else:
+                left.append(path)
+    for path in reversed(folders):
+        remove_path(path, os.rmdir)  # stays when a file in it does
+    return deleted, left
+
+
+def is_link(path: Path):
+    return path.is_symlink() or path.is_junction()
+
+
+DELETING = '.deleting'
+
+
+def delete(path: Path):
+    """Delete a folder or a file whole, or leave it whole: it is first renamed to <name>.deleting, which
+    Windows refuses while a program has a file in it open, so a tool is never left half there for the
+    next run to trust. finish_deleting clears what an interrupted run left. Returns (bytes deleted,
+    paths left)."""
+    if is_link(path) or not path.exists():
+        return remove_tree(path) if is_link(path) else (0, [])
+    renamed = path.with_name(path.name + DELETING)
+    if renamed.exists() or is_link(renamed):
+        remove_tree(renamed)
+    if not remove_path(path, lambda p: os.rename(p, renamed)):
+        return 0, [path]
+    return remove_tree(renamed)
+
+
+def finish_deleting(*folders: Path):
+    """Delete the <name>.deleting an interrupted delete left in these folders."""
+    for folder in folders:
+        if folder.is_dir():
+            for path in folder.glob('*' + DELETING):
+                remove_tree(path)
+
+
+REMOVE_ATTEMPTS = 6  # half a second apart
+
+
+def remove_path(path: Path, function):
+    import stat
+
+    for attempt in range(REMOVE_ATTEMPTS):
+        try:
+            function(path)
+            return True
+        except FileNotFoundError:
+            return True
+        except PermissionError:
+            with contextlib.suppress(OSError):
+                os.chmod(path, stat.S_IWRITE)
+            if attempt:
+                time.sleep(0.5)
+        except OSError:  # a folder that still has files
+            return False
+    return False
+
+
 def github_source(repository, commit, digest, folder: Path):
     """A GitHub repository's files at a pinned commit, from its zip archive, into folder (replaced)."""
-    import shutil
-    import stat
     import tempfile
     import zipfile
 
     with tempfile.TemporaryDirectory() as temp:
         archive = download(f'https://github.com/{repository}/archive/{commit}.zip', Path(temp) / 'source.zip', digest)
-        if folder.exists():
-            # Git's object files (in a clone made by earlier versions of the tools) are read-only.
-            shutil.rmtree(folder, onexc=lambda _, path, __: (os.chmod(path, stat.S_IWRITE), os.remove(path)))
+        if folder.exists() and remove_tree(folder)[1]:  # a Git clone, from earlier versions of the tools
+            sys.exit(f'Could not delete {folder}: a program has files in it open. Close it and run this again.')
         with zipfile.ZipFile(archive) as handle:
             for member in handle.infolist():
                 name = member.filename.split('/', 1)[1]  # below the archive's top folder
