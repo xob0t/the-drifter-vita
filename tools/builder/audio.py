@@ -35,11 +35,19 @@ import fsb5
 import hevag
 import numpy as np
 import unityyaml
-from paths import PROJECT
+from paths import PROJECT, common
 
 HEVAG_FORMAT = 5  # AudioCompressionFormat.HEVAG
 PSP2_GROUP = '17'  # BuildTargetGroup.PSP2, the key of the importer's platform override
 JOB_FRAMES = 1 << 20  # channel frames a worker encodes at once
+# Workers encode the clips; more than 4 hardly help. On an 8-core, 16-thread Ryzen 7 5800X3D the
+# game's 9089 clips took 528 s with 1 worker, 242 s with 2, 144 s with 4, 122 s with 8 and 123 s
+# with 13. A worker peaked at 0.6 GB on the largest job (MusCh9GeneralNoDrums, 5 minutes of stereo,
+# with the next clip); 1 GB each leaves it room. The reserve is for the build process, which grows
+# by about 1 GB while it collects a file's clips, and the system.
+MAX_WORKERS = 4
+MEMORY_PER_WORKER_GB = 1.0
+MEMORY_RESERVE_GB = 2
 
 
 def settings(meta):
@@ -62,11 +70,11 @@ def meta(asset):
 
 
 def read(path):
-    """(samples as (channels, n) float64 in the 16-bit range, rate)."""
+    """(samples as (channels, n) float32 in the 16-bit range, rate)."""
     import soundfile
 
     data, rate = soundfile.read(str(path), dtype='float32', always_2d=True)
-    return data.T.astype(np.float64) * 32768, rate
+    return np.ascontiguousarray(data.T) * np.float32(32768), rate
 
 
 def frequency(rate):
@@ -127,8 +135,16 @@ def _make(jobs):
     return out
 
 
+def default_workers(jobs):
+    """MAX_WORKERS, or fewer where the hardware threads or the free memory are fewer: a worker per
+    thread ran a machine with many threads and less memory out of it."""
+    _, available = common.memory_gb()
+    by_memory = int((available - MEMORY_RESERVE_GB) // MEMORY_PER_WORKER_GB)
+    return max(1, min(MAX_WORKERS, os.cpu_count() or 1, jobs, by_memory))
+
+
 def build(assets, workers=None):
-    """[(fields, bank)] for the audio assets, in their order, encoded on all cores."""
+    """[(fields, bank)] for the audio assets, in their order, encoded by default_workers() processes."""
     import soundfile
 
     jobs, sizes = [], []
@@ -149,7 +165,7 @@ def build(assets, workers=None):
     out = [None] * len(jobs)
     if len(groups) <= 1:
         return _make(jobs)
-    with ProcessPoolExecutor(workers or os.cpu_count()) as pool:
+    with ProcessPoolExecutor(workers or default_workers(len(groups))) as pool:
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
         for future, g in futures.items():
             for i, result in zip(g, future.result(), strict=True):
