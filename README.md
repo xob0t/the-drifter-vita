@@ -20,9 +20,9 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
-2. Download this repository (Code → Download ZIP) and extract it, or clone it.
+2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip) and extract it.
 
-3. In its folder, build:
+3. Open the extracted `the-drifter-vita` folder, right-click in it, choose **Open in Terminal**, and run:
 
    ```powershell
    uv run build.py
