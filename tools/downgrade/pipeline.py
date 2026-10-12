@@ -10,7 +10,7 @@ Stages, each runnable alone:
            --unity, and every Windows player, imports and builds it with the editor in batch mode.
   package  PS Vita: turn the build into a VPK.
            For the PS Vita, all also packages the VPK and then, unless --keep (or --unity), deletes
-           the work files and the unpacked build.
+           the work files, the unpacked build and the tools setup.py installed.
   deploy   PS Vita: package, then upload the VPK to the console (DRIFTER_VITA_HOST, see common.py).
 
 The game installation is only read. Outputs go to work/, builds/ and artifacts/.
@@ -731,14 +731,34 @@ def deploy_vita(vpk: Path):
     log(f'Uploaded to ux0:data/{vpk.name}; install it with VitaShell, then: launch {VITA_TITLE_ID}')
 
 
-def remove_work_files(paths):
-    """Delete what all leaves besides the VPK, and say how much space that frees."""
+def remove_work_files(work):
+    """Delete what all leaves besides the VPK: the work files, the unpacked build, and the tools
+    setup.py installed for the build (setup.installed_tools). Say how much space that frees."""
+    sys.path.insert(0, str(HERE.parent))
+    import setup
+
+    sdk = setup.our_sdk()
     size = 0
-    for path in paths:
-        if path.exists():
-            size += sum(file.stat().st_size for file in path.rglob('*') if file.is_file())
-            remove_tree(path)
-    log(f'Deleted the work files and the unpacked build ({size / 2**30:.1f} GB); --keep keeps them')
+    for path in work + setup.installed_tools():
+        if not path.exists():
+            continue
+        files = [path] if path.is_file() else [f for f in path.rglob('*') if f.is_file()]
+        size += sum(f.stat().st_size for f in files)
+        try:
+            if path.is_file():
+                path.unlink()
+            else:
+                remove_tree(path)
+        except OSError as error:
+            log(f'Could not delete {path}: {error}')
+    if sdk and not sdk.exists():
+        setup.remove_user_env('SCE_PSP2_SDK_DIR')
+    if EXTERNAL.exists() and not any(EXTERNAL.iterdir()):
+        EXTERNAL.rmdir()
+    log(
+        f'Deleted the work files, the unpacked build and the tools setup.py installed ({size / 2**30:.1f} GB). '
+        'To build again, run setup.py again; --keep keeps them'
+    )
 
 
 # ---------------------------------------------------------------- main
@@ -803,8 +823,8 @@ def main():
         '--keep',
         action='store_true',
         help='all, PS Vita: keep the work files (the export, the project, the caches that make a rebuild '
-        'take minutes) and the unpacked build, which vita.py sync uploads. Without it all deletes them '
-        'once the VPK is made',
+        'take minutes), the unpacked build, which vita.py sync uploads, and the tools setup.py installed. '
+        'Without it all deletes them once the VPK is made',
     )
     parser.add_argument(
         '--skip-checks', action='store_true', help="don't check the stage's requirements first (doctor.py's preflight)"

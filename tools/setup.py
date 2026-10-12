@@ -42,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'downgrade'))
 import doctor
 from common import (
+    ASSETRIPPER,
     CECIL,
     CECIL_SHA256,
     CECIL_URL,
@@ -54,10 +55,13 @@ from common import (
     WORK,
     download,
     mono_cecil,
+    setting,
     unity_files,
 )
 
 DOWNLOADS = WORK / 'installers'
+# In a folder setup extracted or copied the PS Vita SDK into, which pipeline.py all may delete.
+SDK_MARKER = 'drifter-setup.txt'
 # How deep below the SDK's folder its Target Manager and Publishing Tools installers are looked for.
 INSTALLER_DEPTH = 4
 
@@ -342,6 +346,8 @@ class Setup:
         if existing:
             self.say('vita-sdk', f'already installed ({existing})')
             return existing
+        # Only a folder setup creates or fills is marked as its own, so pipeline.py all never deletes others.
+        ours = not destination.exists() or not any(destination.iterdir())
         if source.is_dir():
             if self.args.dry_run:
                 self.say('vita-sdk', f'would copy {source} to {destination}')
@@ -362,6 +368,11 @@ class Setup:
         sdk = doctor.find_sdk_root(destination)
         if sdk is None:
             sys.exit(f'--vita-sdk: no PS Vita SDK in {destination} after extracting (looked for {doctor.SDK_TOOLS[0]})')
+        if ours:
+            (destination / SDK_MARKER).write_text(
+                'Extracted by tools/setup.py. pipeline.py all deletes this folder once the VPK is made.\n',
+                encoding='utf-8',
+            )
         return sdk
 
     def validate_sdk(self, sdk: Path):
@@ -598,14 +609,59 @@ def run_elevated(program, arguments: str):
 def set_user_env(name, value):
     """Set a variable for the user (HKCU\\Environment) and tell running programs, so new shells,
     Git Bash included, see it."""
-    import ctypes
     import winreg
 
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Environment', 0, winreg.KEY_SET_VALUE) as key:
         winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
     os.environ[name] = value
+    environment_changed()
+
+
+def remove_user_env(name):
+    import contextlib
+    import winreg
+
+    with (
+        winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Environment', 0, winreg.KEY_SET_VALUE) as key,
+        contextlib.suppress(FileNotFoundError),
+    ):
+        winreg.DeleteValue(key, name)
+    os.environ.pop(name, None)
+    environment_changed()
+
+
+def environment_changed():
+    import ctypes
+
     result = ctypes.c_ulong()
     ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, 'Environment', 0x0002, 5000, ctypes.byref(result))
+
+
+def our_sdk():
+    """The folder setup put the PS Vita SDK in (it has SDK_MARKER), when SCE_PSP2_SDK_DIR is in one."""
+    current = setting('SCE_PSP2_SDK_DIR')
+    if current:
+        return next((f for f in [Path(current), *Path(current).parents] if (f / SDK_MARKER).exists()), None)
+    return None
+
+
+def installed_tools():
+    """What setup.py and the pipeline install for the PS Vita build without the editor, which pipeline.py
+    all deletes with its work files: tools/external's downloads and setup's copy of the SDK. Not the
+    Python packages (.venv), the Visual C++ runtime, an SDK setup didn't extract, or --unity's installs."""
+    tools = [
+        unity_files(TARGET),
+        EXTERNAL / '7-zip',
+        ASSETRIPPER.parent,
+        CECIL.parent,
+        EXTERNAL / 'dotnet',
+        EXTERNAL / 'dotnet-install.ps1',
+        EXTERNAL / 'downgrade-bin',
+        EXTERNAL / 'USCSandbox',
+        EXTERNAL / 'vita-parse-core',
+    ]
+    sdk = our_sdk()
+    return tools + ([sdk] if sdk else [])
 
 
 def download_only(args):

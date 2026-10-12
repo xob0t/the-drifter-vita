@@ -134,7 +134,7 @@ Add `--backend il2cpp` for an IL2CPP player (`builds/drifter-2018.2.19f1-il2cpp/
 uv run tools/downgrade/pipeline.py all --platform vita
 ```
 
-`all --platform vita` assembles `work/drifter-2018.2.19f1-vita`, builds the player into `builds/drifter-2018.2.19f1-vita/` without running the Unity editor ([builder.md](builder.md)), and packages it as `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page. It takes about 17 minutes. Then it deletes the work files, about 4 GB: the export, the project, the builder's caches and the unpacked build.
+`all --platform vita` assembles `work/drifter-2018.2.19f1-vita`, builds the player into `builds/drifter-2018.2.19f1-vita/` without running the Unity editor ([builder.md](builder.md)), and packages it as `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page. It takes about 17 minutes. Then it deletes everything else, about 6 GB: the export, the project, the builder's caches, the unpacked build, and the tools setup installed (`tools/external`'s downloads, and the PS Vita SDK if setup extracted it, with its `SCE_PSP2_SDK_DIR`). An SDK you gave setup as a folder stays, and so do the Python packages (`.venv`). To build again, run setup again.
 
 `--keep` keeps them. A rebuild then takes about 5 minutes, and `vita.py sync` can update an installed app from the unpacked build. The single stages (`rip`, `project`, `build`, `package`) never delete anything; `package` makes the VPK from a kept build.
 

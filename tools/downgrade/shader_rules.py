@@ -100,7 +100,8 @@ def uscsandbox():
     github_source('nesrak1/USCSandbox', USCSANDBOX_COMMIT, USCSANDBOX_SHA256, repo)
     for patch in patches:
         apply_patch(patch, repo)
-    run([dotnet, 'build', '-c', 'Release', repo / 'USCSandbox' / 'USCSandbox.csproj'])
+    # No build servers left running: they would hold the SDK's files, which pipeline.py all deletes.
+    run([dotnet, 'build', '-c', 'Release', '--disable-build-servers', repo / 'USCSandbox' / 'USCSandbox.csproj'])
     stamp.write_text(digest)
     return exe
 
