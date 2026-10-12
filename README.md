@@ -44,19 +44,18 @@ You don't need a Windows player for any of this. It's for testing: `uv run tools
 
 [docs/build.md](docs/build.md) goes through each step in detail, lists the options (`--backend il2cpp`, `--diag`, `--game`, ...) and says what to check when a stage fails.
 
-## Why there's no VPK to download
+## Features
 
-A VPK of this project would be the game. The Vita player can't load The Drifter's PC files when it starts: the build compiles the game's code into the app itself, and converts every scene, sprite and sound into the Vita's formats while building. So a finished VPK holds all of The Drifter's code, art and music, just repackaged. Sharing that means sharing the game, which isn't ours to give away.
-
-The repository holds only the recipe. You run it on the copy of The Drifter you own, and the build happens on your PC.
-
-## What it took
-
-- **Going back to Unity 2018.2**, the last Unity with a Vita build module. AssetRipper exports the game in the 2018 format, an IL rewriter retargets its code, a small runtime library (DrifterCompat) fills in what 2018 lacks, and the shaders are decompiled and rewritten for the Vita's GPU.
-- **Fitting in about 105 MB of RAM.** Textures use the Vita's compressed format, sound stays compressed or streams, and what earlier rooms leave behind is unloaded.
-- **60 fps on a 2011 handheld CPU**, where the game's scripts run about 20 times slower than on a PC. Rules make the game do less work for the same result, and the water and noise effects were rewritten to look the same for less.
-- **Vita controls.** L and R are the triggers, touching either half of the screen acts as a bumper, and the button prompts are redrawn.
-- **Staying faithful.** Test tools render the same moment in the original and in this build and compare the pictures; a rule stays only if the game plays and looks the same.
+- **Vita controls.** L and R are the triggers, and touching the left or right half of the front screen holds a bumper. Cross skips the logos and the intro.
+- **Vita button prompts.** The trigger, bumper and START prompts and the controller picture are redrawn with the Vita's buttons, on the title screen too.
+- **Console menus.** The Vita gets the game's Switch menus, without Quit or the window, resolution and mouse options. The Fullscreen entry becomes a CRT filter switch.
+- **Faster effects.** The water, bubble and lamp shaders read noise from a texture instead of computing it for every pixel, and the rain, sand and bees are drawn in batches. EscReactorWater went from 38-41 to 58-60 fps, and CemeteryGrave from 30-42 to 55-58.
+- **Less work per frame.** The game skips what nobody sees: animators of hidden sprites, particle cameras with nothing to draw, and post-processing in rooms that don't use it.
+- **Fits in memory.** Textures are compressed, the pixel camera renders at 640x360, and rooms you've left give back their sprites and sounds.
+- **Sound without crackling.** The game ran a reverb per voice, more than the Vita's mixer can take, so only one plays at a time. Long music tracks stream.
+- **Quicker saves.** Saving and loading skip most of the reflection the game did. The saves still load in the PC version.
+- **LiveArea art** made from the game's Steam store images.
+- **Checked against the original.** Test tools render the same moment in the original and in this build and compare the pictures. A change stays only if the game plays and looks the same.
 
 ## Documentation
 
