@@ -202,25 +202,63 @@ def mono_cecil():
 
 
 def remove_tree(folder: Path):
-    """Delete a folder or a file, read-only files included (Git's object files, for one). A file another
-    program holds (an antivirus scan, a process still exiting) is tried again for a few seconds, then
-    left. Returns (bytes deleted, files left)."""
-    if not folder.is_dir() or folder.is_symlink():
+    """Delete a folder or a file, read-only files included (Git's object files, for one). A link (a
+    symbolic link or a junction) is removed, never what it points to. A file another program holds (an
+    antivirus scan, a process still exiting) is tried again for a few seconds, then left. Returns
+    (bytes deleted, files left)."""
+    if is_link(folder):
+        return (0, []) if remove_path(folder, os.rmdir if folder.is_dir() else os.remove) else (0, [folder])
+    if not folder.is_dir():
         size = folder.lstat().st_size
         return (size, []) if remove_path(folder, os.remove) else (0, [folder])
-    deleted, left = 0, []
-    for root, folders, files in os.walk(folder, topdown=False):
+    deleted, left, folders = 0, [], []
+    for root, names, files in os.walk(folder):
+        root = Path(root)
+        folders.append(root)
+        for name in [n for n in names if is_link(root / n)]:
+            names.remove(name)  # not into it
+            if not remove_path(root / name, os.rmdir):
+                left.append(root / name)
         for name in files:
-            path = Path(root) / name
+            path = root / name
             size = path.lstat().st_size
             if remove_path(path, os.remove):
                 deleted += size
             else:
                 left.append(path)
-        for name in folders:
-            remove_path(Path(root) / name, os.rmdir)  # stays when a file in it does
-    remove_path(folder, os.rmdir)
+    for path in reversed(folders):
+        remove_path(path, os.rmdir)  # stays when a file in it does
     return deleted, left
+
+
+def is_link(path: Path):
+    return path.is_symlink() or path.is_junction()
+
+
+DELETING = '.deleting'
+
+
+def delete(path: Path):
+    """Delete a folder or a file whole, or leave it whole: it is first renamed to <name>.deleting, which
+    Windows refuses while a program has a file in it open, so a tool is never left half there for the
+    next run to trust. finish_deleting clears what an interrupted run left. Returns (bytes deleted,
+    paths left)."""
+    if is_link(path) or not path.exists():
+        return remove_tree(path) if is_link(path) else (0, [])
+    renamed = path.with_name(path.name + DELETING)
+    if renamed.exists() or is_link(renamed):
+        remove_tree(renamed)
+    if not remove_path(path, lambda p: os.rename(p, renamed)):
+        return 0, [path]
+    return remove_tree(renamed)
+
+
+def finish_deleting(*folders: Path):
+    """Delete the <name>.deleting an interrupted delete left in these folders."""
+    for folder in folders:
+        if folder.is_dir():
+            for path in folder.glob('*' + DELETING):
+                remove_tree(path)
 
 
 REMOVE_ATTEMPTS = 6  # half a second apart

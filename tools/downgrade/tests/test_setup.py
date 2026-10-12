@@ -133,7 +133,7 @@ class VitaSdk(unittest.TestCase):
             self.assertEqual(found, ['Tools/TMServer-1.msi', 'a/b/c/PublishingTools.MSI'])
 
     def test_our_sdk(self):
-        """Only a folder setup created or filled is marked, and so deleted by pipeline.py all."""
+        """Only a folder setup created or filled is marked; pipeline.py clean deletes what it lists."""
         from types import SimpleNamespace
         from unittest import mock
 
@@ -155,7 +155,7 @@ class VitaSdk(unittest.TestCase):
                     self.assertEqual(setup.our_sdk(), destination if ours else None)
                 if ours:  # only what setup put there
                     (destination / 'later.txt').write_bytes(b'')
-                    self.assertEqual(setup.sdk_parts(destination), [destination / 'sdk'])
+                    self.assertEqual(setup.sdk_parts(destination), ([destination / 'sdk'], True))
             self.assertFalse(setup.setup_may_own(Path(Path(temp).anchor)))  # never a drive's root
             self.assertTrue(setup.setup_may_own(Path(temp) / 'nothing-here-yet'))
 

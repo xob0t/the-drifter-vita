@@ -136,7 +136,7 @@ uv run tools/downgrade/pipeline.py all --platform vita
 
 `all --platform vita` assembles `work/drifter-2018.2.19f1-vita`, builds the player into `builds/drifter-2018.2.19f1-vita/` without running the Unity editor ([builder.md](builder.md)), and packages it as `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page. It takes about 17 minutes.
 
-`pipeline.py clean` then deletes everything but the VPK, about N GB: the export, the project, the builder's caches, the unpacked build, and the tools setup installed: `tools/external`'s downloads, and the files setup extracted the PS Vita SDK into, which it lists in `drifter-setup.txt` beside them, with `SCE_PSP2_SDK_DIR`. An SDK setup didn't extract stays, and so does a project the editor imported (`--unity`). To build again, run setup again. No other stage deletes anything: keep the files for 5-minute rebuilds and for `vita.py sync`, which updates an installed app from the unpacked build.
+`build.py` then runs `pipeline.py clean`, which deletes about N GB: the export, the project, the builder's caches, the unpacked build, and the tools setup installed. Those are `tools/external`'s downloads, and the files setup extracted or copied the PS Vita SDK into, which it lists in `drifter-setup.txt` beside them, with `SCE_PSP2_SDK_DIR`. It renames each to `<name>.deleting` first, so a tool a program still holds stays whole, and setup finishes what an interrupted clean left. It keeps the VPK, the logs in `artifacts/`, the Python packages (`.venv`), other builds, an SDK setup didn't put there, and a project the editor imported (`--unity`). To build again, run setup again, or `uv run build.py`. The other stages only replace their own outputs: build with `--keep` (or run the stages yourself) for 5-minute rebuilds and for `vita.py sync`, which updates an installed app from the unpacked build.
 
 To build with the Unity editor instead, add `--unity`. The player goes to `builds/drifter-2018.2.19f1-vita-unity/` and the VPK to `builds/drifter-2018.2.19f1-vita-unity.vpk`. This build keeps its work files, since the project holds the editor's import. This needs a license. The editor converts the textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)).
 
@@ -171,7 +171,8 @@ Without Node.js, Unity imports one asset at a time, and the audio is nearly all 
 | Option | Effect |
 | --- | --- |
 | `rip`, `project`, `build` | Run one stage. `all` runs the three in order. |
-| `package`, `deploy` | Vita only: make the VPK, or make it and upload it. |
+| `package`, `deploy` | Vita only: make the VPK (`all --platform vita` also does), or make it and upload it. |
+| `clean` | Vita only: delete the work files, the unpacked build and the tools setup installed, leaving the VPK. `build.py` runs it last. |
 | `--platform vita` | Build the PS Vita app (always IL2CPP). |
 | `--unity` | Vita: build (or package, or deploy) the app with the Unity editor instead of without it. The output folder gets `-unity`. Windows players always use the editor. |
 | `--backend mono\|il2cpp` | Windows scripting backend, `mono` by default. |

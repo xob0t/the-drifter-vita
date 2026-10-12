@@ -634,6 +634,39 @@ class Tools(unittest.TestCase):
             self.assertTrue((folder / 'b' / 'open').exists())
             self.assertFalse((folder / 'c').exists())
 
+    def test_remove_tree_links(self):
+        """A junction is removed, never what it points to."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as temp:
+            outside, folder = Path(temp) / 'outside', Path(temp) / 'a'
+            outside.mkdir()
+            (outside / 'keep').write_bytes(b'x')
+            folder.mkdir()
+            for link in (folder / 'link', Path(temp) / 'top-link'):
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(link), str(outside)], check=True, capture_output=True)
+            common.remove_tree(folder)
+            common.remove_tree(Path(temp) / 'top-link')
+            self.assertFalse(folder.exists() or (Path(temp) / 'top-link').exists())
+            self.assertTrue((outside / 'keep').exists())
+
+    def test_delete_whole(self):
+        """delete leaves a folder whole when a program has a file in it open, and finish_deleting clears
+        what an interrupted delete left."""
+        with tempfile.TemporaryDirectory() as temp:
+            tool = Path(temp) / 'tool'
+            (tool / 'bin').mkdir(parents=True)
+            (tool / 'tool.exe').write_bytes(b'x')
+            (tool / 'bin' / 'lib.dll').write_bytes(b'yz')
+            with mock.patch.object(common, 'REMOVE_ATTEMPTS', 2), (tool / 'bin' / 'lib.dll').open('rb'):
+                self.assertEqual(common.delete(tool), (0, [tool]))
+            self.assertTrue((tool / 'tool.exe').exists())
+            self.assertEqual(common.delete(tool), (3, []))
+            self.assertFalse(tool.exists())
+            (Path(temp) / 'old.deleting' / 'x').mkdir(parents=True)
+            common.finish_deleting(Path(temp))
+            self.assertEqual(list(Path(temp).iterdir()), [])
+
     def test_work_files(self):
         """pipeline.py clean keeps a project the editor imported (pipeline.py build --unity)."""
         with tempfile.TemporaryDirectory() as temp, mock.patch.object(pipeline, 'WORK', Path(temp)):
