@@ -119,6 +119,9 @@ ASSETRIPPER_ZIP = (
 
 GAME_DIR = STEAM_GAME.name
 GAME_EXE = 'TheDrifter.exe'
+# The game's GOG product ID, and the folder GOG installs it in by default.
+GOG_ID = '1629486561'
+GOG_GAME = Path(r'C:\GOG Games\The Drifter')
 
 # Where setup.py extracts an SDK archive by default; the SDK is its sdk folder.
 VITA_SDK_FOLDER = Path(r'C:\vitasdk')
@@ -343,6 +346,26 @@ def steam_game():
     return next((c for c in game_candidates(steam_roots(), read_text) if (c / GAME_EXE).exists()), None)
 
 
+def gog_game():
+    """The Drifter's GOG install, from the key GOG's installer writes, else GOG's default folder; or None.
+    Its data is the Steam release's: only Steam's restart check is missing from its code."""
+    import winreg
+
+    folders = []
+    for path in (rf'SOFTWARE\WOW6432Node\GOG.com\Games\{GOG_ID}', rf'SOFTWARE\GOG.com\Games\{GOG_ID}'):
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as handle:
+                folders.append(Path(winreg.QueryValueEx(handle, 'path')[0]))
+        except OSError:
+            pass
+    return next((f for f in [*folders, GOG_GAME] if (f / GAME_EXE).exists()), None)
+
+
+def find_game():
+    """The Drifter's folder in a Steam library, else its GOG install, or None."""
+    return steam_game() or gog_game()
+
+
 def sdk_version(sdk: Path):
     text = read_text(sdk / SDK_VERSION_FILE)
     return parse_sdk_version(text) if text else None
@@ -449,10 +472,10 @@ def check_csc():
 
 
 def check_game(game: Path):
-    name = 'The Drifter (Steam)'
+    name = 'The Drifter'
     fix = f'{SETUP} --game <folder with {GAME_EXE}>'
     if not (game / GAME_EXE).exists():
-        found = steam_game()
+        found = find_game()
         hint = f'; found in {found}' if found and found != game else ''
         return Check(name, False, f'no {GAME_EXE} in {game}{hint}', fix)
     data = game / 'TheDrifter_Data'

@@ -6,7 +6,7 @@ The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run buil
 
 ## 1. Set up
 
-1. Install The Drifter from Steam, and these two tools:
+1. Install The Drifter from Steam or GOG, and these two tools:
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -37,7 +37,7 @@ The setup script installs what is missing and skips what is already there, so yo
 - runs `uv sync` for the Python packages;
 - installs the Unity 2018.2.19f1 editor from Unity's CDN into `%LOCALAPPDATA%\Unity\Editors\2018.2.19f1` (and with `--vita --unity` its PS Vita module). With `--vita` alone it installs no Unity: it downloads the editor and PS Vita module installers and extracts the files the pipeline and the PS Vita build read, about 1.2 GB, into `tools\external\unity-2018.2.19f1`, using 7-Zip (an installed one, or 7-Zip's package from GitHub, pinned by hash);
 - downloads AssetRipper 2.0.0 into `tools/external/assetripper-2.0.0`, and Mono.Cecil from NuGet;
-- finds the game in your Steam libraries, and offers to set `DRIFTER_GAME` if it is not in Steam's default folder;
+- finds the game in your Steam libraries, or else its GOG install, and offers to set `DRIFTER_GAME` if it is not in Steam's default folder;
 - with `--vita`, installs Sony's PS Vita SDK (downloaded from archive.org, or your copy with `--vita-sdk`), checks it and sets `SCE_PSP2_SDK_DIR` for your user; with `--vita --unity`, also its Target Manager Server and Publishing Tools, which only the editor's build needs, and sets `SCE_ROOT_DIR`;
 - when it installed the editor, starts it once in batch mode to check that it runs (see [The Unity license](#the-unity-license));
 - ends with the doctor's checklist (see [Checking the setup](#checking-the-setup)).
@@ -102,7 +102,7 @@ With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS
 These are the steps the script takes, if you prefer to do them yourself:
 
 - `uv sync` in the repository installs the Python packages from `uv.lock`.
-- The game: the pipeline looks in `C:\Program Files (x86)\Steam\steamapps\common\The Drifter`. Set `DRIFTER_GAME` or pass `--game <path>` if yours is elsewhere.
+- The game: the pipeline looks in `C:\Program Files (x86)\Steam\steamapps\common\The Drifter`. Set `DRIFTER_GAME` or pass `--game <path>` if yours is elsewhere, such as a GOG install.
 - [AssetRipper](https://github.com/AssetRipper/AssetRipper) 2.0.0: extract the release's `AssetRipper_win_x64.zip` to `tools/external/assetripper-2.0.0`.
 - Unity **2018.2.19f1**: `UnitySetup64-2018.2.19f1.exe /S /D=%LOCALAPPDATA%\Unity\Editors\2018.2.19f1` ([installer](https://download.unity3d.com/download_unity/06990f28ba00/Windows64EditorInstaller/UnitySetup64-2018.2.19f1.exe)).
 - For IL2CPP: the Windows IL2CPP module ([installer](https://download.unity3d.com/download_unity/06990f28ba00/TargetSupportInstaller/UnitySetup-Windows-IL2CPP-Support-for-Editor-2018.2.19f1.exe)) with `/S /D=%LOCALAPPDATA%\Unity\Editors\2018.2.19f1`, and Visual Studio 2022 Build Tools with "Desktop development with C++".
@@ -191,6 +191,6 @@ A project assembled with `--diag` must be built with `--diag` too. Run the `proj
 
 - **Before any stage**: "requirement(s) missing" lists what the stage lacks, with the command that fixes each item.
 - **`rip`**: "AssetRipper did not start" or "produced no project". Check the AssetRipper folder and `artifacts/downgrade/assetripper.log`.
-- **`project`**: a rule found the game data different from what it expects and stops with the file and the reason. This happens with another version of the game. The rules are written for the current Steam release.
+- **`project`**: a rule found the game data different from what it expects and stops with the file and the reason. This happens with another version of the game. The rules are written for the current Steam release. GOG's 1.1.5 has the same data; only Steam's restart check is missing from its code.
 - **`build`**: the full Unity log is in `artifacts/downgrade/build-<version>-<platform>-<backend>[-diag].log`, and the pipeline prints its errors. If IL2CPP fails on the Vita, check the SDK with `uv run tools/setup.py doctor --target vita`. A good build still counts about 670 errors in its summary (671 on Windows, 675 on the Vita), so compare with that rather than with zero.
 - **`deploy`** and `vita.py`: "Set DRIFTER_VITA_HOST" means the console's address is not set.
