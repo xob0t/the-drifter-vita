@@ -720,6 +720,7 @@ def main():
         'the license check',
     )
     parser.add_argument('--skip-license-check', action='store_true', help='do not start the editor at the end')
+    parser.add_argument('--then-build', action='store_true', help=argparse.SUPPRESS)  # build.py builds next
     args = parser.parse_args()
     if args.vita_sdk:
         args.vita = True
@@ -756,7 +757,7 @@ def main():
     code = doctor.main(['--target', target], setup.license_check)
     for note in setup.notes:
         print('To do: ' + note)
-    if code == 0 and not setup.notes:
+    if code == 0 and not setup.notes and not args.then_build:
         platform = ' --platform vita' if args.vita else (' --backend il2cpp' if args.il2cpp else '')
         print(f'Next: uv run tools/downgrade/pipeline.py all{platform}')
     sys.exit(code)

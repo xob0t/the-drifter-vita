@@ -2,7 +2,7 @@
 
 The pipeline turns your installed copy of The Drifter into a Unity 2018.2 project and builds a Windows player or a PS Vita app from it. It reads the game and never changes it. Everything it makes goes to `work/` (exports and projects), `builds/` (players and VPKs) and `artifacts/` (logs).
 
-The steps below are for Windows 10 or 11, x64.
+The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run build.py` in the repository runs them all: setup (step 1, `tools/setup.py --vita`) and the build (step 3, `pipeline.py all --platform vita`). It takes `--game`, `--vita-sdk`, `--keep` and `--unity`, which it passes on.
 
 ## 1. Set up
 
