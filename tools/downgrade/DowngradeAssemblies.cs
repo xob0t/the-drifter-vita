@@ -16,7 +16,7 @@ using Mono.Cecil.Cil;
 //
 // The rewriter is this file and rewriter/*.cs, compiled together in the order of
 // pipeline.REWRITER_SOURCES; DowngradeAssemblies is one partial class across them:
-//   DowngradeAssemblies.cs  Main, Rewrite, Passes (every pass in the order they run), body sizes
+//   DowngradeAssemblies.cs  Main, Rewrite, Verify, Passes (every pass in the order they run), body sizes
 //   Patches.cs              single game methods: CRT filter, console menus, PowerQuest's startup,
 //                           post-processing volumes, saves, reflection, audio source filters,
 //                           water sprites; CachedCalls, CacheCalls' table
@@ -238,11 +238,48 @@ partial class DowngradeAssemblies
                 Console.WriteLine(Path.GetFileName(file) + " -> " + Path.GetFileName(destination) + " " + stats);
             }
         }
+        Verify(output, args.Skip(4).Concat(new[] { Path.GetDirectoryName(Path.GetFullPath(args[2])) }));
         foreach (string problem in problems.Distinct()) Console.WriteLine("UNRESOLVED " + problem);
         foreach (string site in skipped.Distinct()) Console.WriteLine("SKIPPED " + site);
         string[] unmatched = matches.Where(m => m.Value == 0).Select(m => m.Key).ToArray();
         foreach (string rule in unmatched) Console.WriteLine("NO MATCH " + rule + " (in none of the assemblies; the game no longer has what it expects)");
         return problems.Count > 0 ? 3 : unmatched.Length > 0 ? 4 : 0;
+    }
+
+    // Every type and member the written assemblies reference must resolve against each other, the
+    // target's engine and DrifterCompat, as Unity's linker resolves them (it stops at the first that
+    // does not, after a build of the whole player). The input folder is not searched: it holds the
+    // source version's assemblies. A failure is reported as UNRESOLVED.
+    static void Verify(string output, IEnumerable<string> references)
+    {
+        var resolver = new DefaultAssemblyResolver();
+        foreach (string dir in resolver.GetSearchDirectories()) resolver.RemoveSearchDirectory(dir);
+        resolver.AddSearchDirectory(output);
+        foreach (string dir in references) resolver.AddSearchDirectory(dir);
+        foreach (string file in Directory.GetFiles(output, "*.dll"))
+        {
+            using (var module = ModuleDefinition.ReadModule(file, new ReaderParameters { AssemblyResolver = resolver }))
+            {
+                foreach (TypeReference type in module.GetTypeReferences())
+                {
+                    try { if (type.Resolve() == null) problems.Add(module.Name + ": verify type " + type.FullName); }
+                    catch (AssemblyResolutionException e) { problems.Add(module.Name + ": verify type " + type.FullName + " (" + e.AssemblyReference.Name + ")"); }
+                }
+                foreach (MemberReference member in module.GetMemberReferences())
+                {
+                    // Multidimensional arrays' Get, Set, Address and constructor come from the runtime.
+                    if (member.DeclaringType is ArrayType) continue;
+                    try
+                    {
+                        var method = member as MethodReference;
+                        var field = member as FieldReference;
+                        if ((method != null && method.Resolve() == null) || (field != null && field.Resolve() == null))
+                            problems.Add(module.Name + ": verify member " + member.FullName);
+                    }
+                    catch (AssemblyResolutionException e) { problems.Add(module.Name + ": verify member " + member.FullName + " (" + e.AssemblyReference.Name + ")"); }
+                }
+            }
+        }
     }
 
     static int Priority(string file)
@@ -306,6 +343,9 @@ partial class DowngradeAssemblies
             }
             else problems.Add(module.Name + ": type " + type.FullName);
         }
+        // Before the passes: references unused after the retargeting are read from the file's own
+        // type references, which do not list what a pass imports.
+        int removed = RemoveUnusedReferences(module);
         // Each group's line of the stats, "  <group>: <pass>=<sites> ...", for groups that changed something.
         var groups = new List<string>();
         var lines = new Dictionary<string, string>();
@@ -326,7 +366,6 @@ partial class DowngradeAssemblies
         }
         int outOfRange;
         int widened = WidenChangedBodies(module, sizes, out outOfRange);
-        int removed = RemoveUnusedReferences(module);
         return "retargeted=" + retargeted + " shimTypes=" + shimmedTypes + " strippedAttributes=" + stripped +
                " widenedBodies=" + widened + " (short branches out of range in " + outOfRange + ")" +
                " removedReferences=" + removed + string.Concat(groups.Where(changed.Contains).Select(g => lines[g]));
