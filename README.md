@@ -14,15 +14,15 @@ The CRT filter is off by default because it's expensive on the Vita. Turn it on 
 
 You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō with VitaShell.
 
-1. Install [uv](https://docs.astral.sh/uv/).
+1. Install [uv](https://docs.astral.sh/uv/): open PowerShell from the Start menu and run
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
-2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip) and extract it.
+2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), right-click it and choose **Extract All**.
 
-3. Open the extracted `the-drifter-vita` folder, right-click in it, choose **Open in Terminal**, and run:
+3. Open the extracted `the-drifter-vita` folder, right-click in it, choose **Open in Terminal** (on Windows 10: Shift + right-click, **Open PowerShell window here**), and run:
 
    ```powershell
    uv run build.py

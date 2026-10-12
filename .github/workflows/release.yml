@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Package
-        run: git archive --format=zip --prefix=the-drifter-vita/ -o the-drifter-vita.zip HEAD
+        run: git archive --format=zip -o the-drifter-vita.zip HEAD
       - name: Upload
         env:
           GH_TOKEN: ${{ github.token }}
