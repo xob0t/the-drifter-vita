@@ -477,9 +477,9 @@ class Setup:
                 self.say('game', f'DRIFTER_GAME={current} has no {doctor.GAME_EXE}; pass --game <folder>')
                 self.notes.append('Point DRIFTER_GAME at the game: uv run tools/setup.py --game <folder>')
             return
-        found = doctor.steam_game()
+        found = doctor.find_game()
         if found is None:
-            self.say('game', 'The Drifter is not in any Steam library; install it with Steam, or pass --game <folder>')
+            self.say('game', 'The Drifter is in no Steam library or GOG install; install it, or pass --game <folder>')
             self.notes.append('Install The Drifter, or: uv run tools/setup.py --game <folder>')
         elif os.path.normcase(str(found)) == os.path.normcase(str(STEAM_GAME)):
             self.say('game', f"already found at Steam's default folder ({STEAM_GAME})")
