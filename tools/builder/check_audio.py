@@ -11,7 +11,6 @@ against Unity's, all decoded as the console does. Our .resource files go to work
 
 import argparse
 import collections
-import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -57,7 +56,7 @@ def quality(items):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--every', type=int, default=1)
-    parser.add_argument('--workers', type=int, default=os.cpu_count())
+    parser.add_argument('--workers', type=int, help="default: the build's (audio.default_workers)")
     parser.add_argument('--no-snr', action='store_true')
     parser.add_argument('--show', type=int, default=3)
     args = parser.parse_args()
@@ -71,6 +70,7 @@ def main():
                 pairs.append((f, start + i, layout.db.by_guid[g]))
     pairs = pairs[:: args.every]
     print(f'{len(pairs)} clips')
+    args.workers = args.workers or audio.default_workers(len(pairs))
 
     started = time.time()
     built = audio.build([a for _, _, a in pairs], args.workers)

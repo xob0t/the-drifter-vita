@@ -77,7 +77,7 @@ PAIRS = np.array([(1 if j == k else 2) * _A[:, j] * _A[:, k] for j, k in UPPER],
 # The largest step of each shift 1..12, for the smallest shift that covers a residual peak.
 PEAKS = np.array([(7 << 12) >> s for s in range(1, 13)], np.float32)
 SHIFT_TRIES = np.array([0, 1])
-STRETCH_BLOCK = 1 << 20  # samples stretch() interpolates at once, which bounds its temporaries
+STRETCH_BLOCK = 1 << 20  # output samples per channel stretch() interpolates at once, to bound its temporaries
 
 
 def frames_for(samples):

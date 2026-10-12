@@ -40,11 +40,11 @@ from paths import PROJECT, common
 HEVAG_FORMAT = 5  # AudioCompressionFormat.HEVAG
 PSP2_GROUP = '17'  # BuildTargetGroup.PSP2, the key of the importer's platform override
 JOB_FRAMES = 1 << 20  # channel frames a worker encodes at once
-# Workers encode the clips; more than 4 hardly help. On an 8-core, 16-thread Ryzen 7 5800X3D the
-# game's 9089 clips took 528 s with 1 worker, 242 s with 2, 144 s with 4, 122 s with 8 and 123 s
-# with 13. A worker peaked at 0.6 GB on the largest job (MusCh9GeneralNoDrums, 5 minutes of stereo,
-# with the next clip); 1 GB each leaves it room. The reserve is for the build process, which grows
-# by about 1 GB while it collects a file's clips, and the system.
+# Processes that encode the clips. More than 4 hardly help: on an 8-core, 16-thread Ryzen 7 5800X3D
+# the game's 9089 clips took 528 s with 1, 242 s with 2, 144 s with 4, 122 s with 8 and 123 s with
+# 13. The largest job (MusCh9GeneralNoDrums, 5 minutes of stereo, and the clip grouped with it)
+# allocated up to 0.6 GB by tracemalloc; 1 GB a worker leaves room. The reserve is for the system
+# and the build process, which grew by 1 GB after the audio step started.
 MAX_WORKERS = 4
 MEMORY_PER_WORKER_GB = 1.0
 MEMORY_RESERVE_GB = 2
@@ -136,8 +136,9 @@ def _make(jobs):
 
 
 def default_workers(jobs):
-    """MAX_WORKERS, or fewer where the hardware threads or the free memory are fewer: a worker per
-    thread ran a machine with many threads and less memory out of it."""
+    """How many processes encode the audio: MAX_WORKERS, or fewer where there are fewer hardware
+    threads or jobs, or where the free memory holds fewer (MEMORY_PER_WORKER_GB each after
+    MEMORY_RESERVE_GB). One per thread ran a user's machine out of memory."""
     _, available = common.memory_gb()
     by_memory = int((available - MEMORY_RESERVE_GB) // MEMORY_PER_WORKER_GB)
     return max(1, min(MAX_WORKERS, os.cpu_count() or 1, jobs, by_memory))
@@ -165,7 +166,14 @@ def build(assets, workers=None):
     out = [None] * len(jobs)
     if len(groups) <= 1:
         return _make(jobs)
-    with ProcessPoolExecutor(workers or default_workers(len(groups))) as pool:
+    workers = workers or default_workers(len(groups))
+    if workers == 1:
+        # Here, a group at a time: a worker would load a second interpreter where memory is short.
+        for g in groups:
+            for i, result in zip(g, _make([jobs[i] for i in g]), strict=True):
+                out[i] = result
+        return out
+    with ProcessPoolExecutor(workers) as pool:
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
         for future, g in futures.items():
             for i, result in zip(g, future.result(), strict=True):
