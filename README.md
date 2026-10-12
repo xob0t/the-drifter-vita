@@ -34,7 +34,7 @@ It takes about 25 minutes. It downloads what the build needs: Sony's PS Vita SDK
 
 - `--vita-sdk <archive or folder>` uses your own copy of the SDK.
 - `--game <folder>` reads the game from another folder than Steam's default.
-- `--keep` keeps the work files and the tools, about N GB. A rebuild then takes about 5 minutes.
+- `--keep` keeps the work files and the tools, about 6 GB. A rebuild then takes about 5 minutes.
 
 `uv run build.py --unity` builds with the Unity editor instead. It installs the editor with its PS Vita module, and the SDK's Target Manager Server and Publishing Tools, and keeps its files, since the project holds the editor's slow import. The VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
 
