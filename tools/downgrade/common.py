@@ -200,18 +200,27 @@ def mono_cecil():
     return CECIL
 
 
-def github_source(repository, commit, digest, folder: Path):
-    """A GitHub repository's files at a pinned commit, from its zip archive, into folder (replaced)."""
+def remove_tree(folder: Path):
+    """Delete a folder, read-only files included (Git's object files, for one)."""
     import shutil
     import stat
+
+    def writable(function, path, _):
+        os.chmod(path, stat.S_IWRITE)
+        function(path)
+
+    shutil.rmtree(folder, onexc=writable)
+
+
+def github_source(repository, commit, digest, folder: Path):
+    """A GitHub repository's files at a pinned commit, from its zip archive, into folder (replaced)."""
     import tempfile
     import zipfile
 
     with tempfile.TemporaryDirectory() as temp:
         archive = download(f'https://github.com/{repository}/archive/{commit}.zip', Path(temp) / 'source.zip', digest)
         if folder.exists():
-            # Git's object files (in a clone made by earlier versions of the tools) are read-only.
-            shutil.rmtree(folder, onexc=lambda _, path, __: (os.chmod(path, stat.S_IWRITE), os.remove(path)))
+            remove_tree(folder)  # a Git clone, from earlier versions of the tools
         with zipfile.ZipFile(archive) as handle:
             for member in handle.infolist():
                 name = member.filename.split('/', 1)[1]  # below the archive's top folder

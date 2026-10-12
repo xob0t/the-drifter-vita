@@ -9,6 +9,8 @@ Stages, each runnable alone:
   build    Build the player. The PS Vita player is built without running Unity (tools/builder);
            --unity, and every Windows player, imports and builds it with the editor in batch mode.
   package  PS Vita: turn the build into a VPK.
+           For the PS Vita, all also packages the VPK and then, unless --keep (or --unity), deletes
+           the work files and the unpacked build.
   deploy   PS Vita: package, then upload the VPK to the console (DRIFTER_VITA_HOST, see common.py).
 
 The game installation is only read. Outputs go to work/, builds/ and artifacts/.
@@ -75,6 +77,7 @@ from common import (
     meta_guid,
     meta_of,
     mono_cecil,
+    remove_tree,
     run,
     stable_meta,
     vita_host,
@@ -728,6 +731,16 @@ def deploy_vita(vpk: Path):
     log(f'Uploaded to ux0:data/{vpk.name}; install it with VitaShell, then: launch {VITA_TITLE_ID}')
 
 
+def remove_work_files(paths):
+    """Delete what all leaves besides the VPK, and say how much space that frees."""
+    size = 0
+    for path in paths:
+        if path.exists():
+            size += sum(file.stat().st_size for file in path.rglob('*') if file.is_file())
+            remove_tree(path)
+    log(f'Deleted the work files and the unpacked build ({size / 2**30:.1f} GB); --keep keeps them')
+
+
 # ---------------------------------------------------------------- main
 
 
@@ -787,6 +800,13 @@ def main():
         "no import; it reads the installed editor's files and the SDK's tools). Windows players always use the editor",
     )
     parser.add_argument(
+        '--keep',
+        action='store_true',
+        help='all, PS Vita: keep the work files (the export, the project, the caches that make a rebuild '
+        'take minutes) and the unpacked build, which vita.py sync uploads. Without it all deletes them '
+        'once the VPK is made',
+    )
+    parser.add_argument(
         '--skip-checks', action='store_true', help="don't check the stage's requirements first (doctor.py's preflight)"
     )
     args = parser.parse_args()
@@ -841,10 +861,24 @@ def main():
             args.development,
             args.import_jobs,
         )
-    if args.stage in ('package', 'deploy'):
+    if args.stage in ('package', 'deploy') or (args.stage == 'all' and args.platform == 'vita'):
         vpk = package_vita(build_dir(args.version, 'il2cpp', 'vita', args.diag, unity))
         if args.stage == 'deploy':
             deploy_vita(vpk)
+    # The editor build's project holds Unity's import of the game (up to 100 minutes), so --unity keeps it.
+    if args.stage == 'all' and args.platform == 'vita' and not unity and not args.keep:
+        remove_work_files(
+            [
+                rip_dir,
+                project,
+                WORK / f'assemblies-{args.version}',
+                WORK / 'shaders',
+                WORK / 'upstream',
+                WORK / 'livearea',
+                WORK / 'builder',
+                output,
+            ]
+        )
 
 
 if __name__ == '__main__':
