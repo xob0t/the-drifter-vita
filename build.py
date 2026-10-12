@@ -3,21 +3,30 @@
     uv run build.py
 
 Runs tools/setup.py --vita, which downloads what the build needs (Unity's files, without installing
-Unity, and the PS Vita SDK), then tools/downgrade/pipeline.py all --platform vita. That leaves
-builds/drifter-2018.2.19f1-vita.vpk and deletes everything else; --keep keeps it, for faster rebuilds.
-docs/build.md describes both tools and their other options.
+Unity, and the PS Vita SDK), then tools/downgrade/pipeline.py all --platform vita, which makes
+builds/drifter-2018.2.19f1-vita.vpk, then pipeline.py clean, which deletes the work files and the tools.
+--keep skips the clean, for faster rebuilds. docs/build.md describes the tools and their other options.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / 'tools' / 'downgrade'))
+from common import registry_env  # noqa: E402
 
 
 def run(script, *args):
-    code = subprocess.run([sys.executable, str(ROOT / script), *args]).returncode
+    # What setup just set for the user wins over an older value this shell started with.
+    env = dict(os.environ)
+    for name in ('SCE_PSP2_SDK_DIR', 'DRIFTER_GAME'):
+        value = registry_env(name, 'user')
+        if value:
+            env[name] = value
+    code = subprocess.run([sys.executable, str(ROOT / script), *args], env=env).returncode
     if code:
         sys.exit(code)
 
@@ -39,7 +48,10 @@ def main():
     sdk = ['--vita-sdk', args.vita_sdk] if args.vita_sdk else []
     unity = ['--unity'] if args.unity else []
     run('tools/setup.py', '--vita', '--then-build', *game, *sdk, *unity)
-    run('tools/downgrade/pipeline.py', 'all', '--platform', 'vita', *game, *unity, *(['--keep'] if args.keep else []))
+    run('tools/downgrade/pipeline.py', 'all', '--platform', 'vita', *game, *unity)
+    # In a process of its own: the build's holds some of the tools' files open until it ends.
+    if not args.keep and not args.unity:
+        run('tools/downgrade/pipeline.py', 'clean')
 
 
 if __name__ == '__main__':

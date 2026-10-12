@@ -153,7 +153,11 @@ class VitaSdk(unittest.TestCase):
                 self.assertEqual((destination / setup.SDK_MARKER).exists(), ours)
                 with mock.patch.object(setup, 'setting', return_value=str(sdk)):
                     self.assertEqual(setup.our_sdk(), destination if ours else None)
-                    self.assertEqual(destination in setup.installed_tools(), ours)
+                if ours:  # only what setup put there
+                    (destination / 'later.txt').write_bytes(b'')
+                    self.assertEqual(setup.sdk_parts(destination), [destination / 'sdk'])
+            self.assertFalse(setup.setup_may_own(Path(Path(temp).anchor)))  # never a drive's root
+            self.assertTrue(setup.setup_may_own(Path(temp) / 'nothing-here-yet'))
 
     def test_downloads(self):
         self.assertEqual(set(doctor.SCE_INSTALLER_DOWNLOADS), set(doctor.SCE_INSTALLERS))

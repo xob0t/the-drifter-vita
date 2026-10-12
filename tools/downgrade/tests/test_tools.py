@@ -620,8 +620,27 @@ class Tools(unittest.TestCase):
             (folder / 'b').mkdir(parents=True)
             (folder / 'b' / 'pack').write_bytes(b'x')
             os.chmod(folder / 'b' / 'pack', 0o444)  # read-only, as Git's object files
-            common.remove_tree(folder)
+            self.assertEqual(common.remove_tree(folder), (1, []))
             self.assertFalse(folder.exists())
+            # A file another program has open stays, and so do its folders; the rest goes.
+            (folder / 'b').mkdir(parents=True)
+            (folder / 'b' / 'open').write_bytes(b'xy')
+            (folder / 'c').write_bytes(b'xyz')
+            with (
+                mock.patch.object(common, 'REMOVE_ATTEMPTS', 2),
+                (folder / 'b' / 'open').open('rb'),
+            ):
+                self.assertEqual(common.remove_tree(folder), (3, [folder / 'b' / 'open']))
+            self.assertTrue((folder / 'b' / 'open').exists())
+            self.assertFalse((folder / 'c').exists())
+
+    def test_work_files(self):
+        """pipeline.py clean keeps a project the editor imported (pipeline.py build --unity)."""
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(pipeline, 'WORK', Path(temp)):
+            project = Path(temp) / 'drifter-2018.2.19f1-vita'
+            self.assertIn(project, pipeline.work_files('2018.2.19f1'))
+            (project / 'Library').mkdir(parents=True)
+            self.assertNotIn(project, pipeline.work_files('2018.2.19f1'))
 
     def test_apply_patch(self):
         patch = (

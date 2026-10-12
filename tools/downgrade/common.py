@@ -2,6 +2,7 @@
 shader_rules.py) and the other tools. Tools that import pipeline also reach the names pipeline.py
 imports from here as pipeline.<name>."""
 
+import contextlib
 import hashlib
 import os
 import re
@@ -201,15 +202,47 @@ def mono_cecil():
 
 
 def remove_tree(folder: Path):
-    """Delete a folder, read-only files included (Git's object files, for one)."""
-    import shutil
+    """Delete a folder or a file, read-only files included (Git's object files, for one). A file another
+    program holds (an antivirus scan, a process still exiting) is tried again for a few seconds, then
+    left. Returns (bytes deleted, files left)."""
+    if not folder.is_dir() or folder.is_symlink():
+        size = folder.lstat().st_size
+        return (size, []) if remove_path(folder, os.remove) else (0, [folder])
+    deleted, left = 0, []
+    for root, folders, files in os.walk(folder, topdown=False):
+        for name in files:
+            path = Path(root) / name
+            size = path.lstat().st_size
+            if remove_path(path, os.remove):
+                deleted += size
+            else:
+                left.append(path)
+        for name in folders:
+            remove_path(Path(root) / name, os.rmdir)  # stays when a file in it does
+    remove_path(folder, os.rmdir)
+    return deleted, left
+
+
+REMOVE_ATTEMPTS = 6  # half a second apart
+
+
+def remove_path(path: Path, function):
     import stat
 
-    def writable(function, path, _):
-        os.chmod(path, stat.S_IWRITE)
-        function(path)
-
-    shutil.rmtree(folder, onexc=writable)
+    for attempt in range(REMOVE_ATTEMPTS):
+        try:
+            function(path)
+            return True
+        except FileNotFoundError:
+            return True
+        except PermissionError:
+            with contextlib.suppress(OSError):
+                os.chmod(path, stat.S_IWRITE)
+            if attempt:
+                time.sleep(0.5)
+        except OSError:  # a folder that still has files
+            return False
+    return False
 
 
 def github_source(repository, commit, digest, folder: Path):
@@ -219,8 +252,8 @@ def github_source(repository, commit, digest, folder: Path):
 
     with tempfile.TemporaryDirectory() as temp:
         archive = download(f'https://github.com/{repository}/archive/{commit}.zip', Path(temp) / 'source.zip', digest)
-        if folder.exists():
-            remove_tree(folder)  # a Git clone, from earlier versions of the tools
+        if folder.exists() and remove_tree(folder)[1]:  # a Git clone, from earlier versions of the tools
+            sys.exit(f'Could not delete {folder}: a program has files in it open. Close it and run this again.')
         with zipfile.ZipFile(archive) as handle:
             for member in handle.infolist():
                 name = member.filename.split('/', 1)[1]  # below the archive's top folder

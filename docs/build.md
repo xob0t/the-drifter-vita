@@ -2,7 +2,7 @@
 
 The pipeline turns your installed copy of The Drifter into a Unity 2018.2 project and builds a Windows player or a PS Vita app from it. It reads the game and never changes it. Everything it makes goes to `work/` (exports and projects), `builds/` (players and VPKs) and `artifacts/` (logs).
 
-The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run build.py` in the repository runs them all: setup (step 1, `tools/setup.py --vita`) and the build (step 3, `pipeline.py all --platform vita`). It takes `--game`, `--vita-sdk`, `--keep` and `--unity`, which it passes on.
+The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run build.py` in the repository runs them all: setup (step 1, `tools/setup.py --vita`), the build (step 3, `pipeline.py all --platform vita`) and the clean-up (`pipeline.py clean`, below). It passes on `--game`, `--vita-sdk` and `--unity`. `--keep`, and `--unity`, skip the clean-up.
 
 ## 1. Set up
 
@@ -134,9 +134,9 @@ Add `--backend il2cpp` for an IL2CPP player (`builds/drifter-2018.2.19f1-il2cpp/
 uv run tools/downgrade/pipeline.py all --platform vita
 ```
 
-`all --platform vita` assembles `work/drifter-2018.2.19f1-vita`, builds the player into `builds/drifter-2018.2.19f1-vita/` without running the Unity editor ([builder.md](builder.md)), and packages it as `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page. It takes about 17 minutes. Then it deletes everything else, about 6 GB: the export, the project, the builder's caches, the unpacked build, and the tools setup installed (`tools/external`'s downloads, and the PS Vita SDK if setup extracted it, with its `SCE_PSP2_SDK_DIR`). An SDK you gave setup as a folder stays, and so do the Python packages (`.venv`). To build again, run setup again.
+`all --platform vita` assembles `work/drifter-2018.2.19f1-vita`, builds the player into `builds/drifter-2018.2.19f1-vita/` without running the Unity editor ([builder.md](builder.md)), and packages it as `builds/drifter-2018.2.19f1-vita.vpk`, title ID `DRFT00001`, with LiveArea art it downloads from the game's Steam store page. It takes about 17 minutes.
 
-`--keep` keeps them. A rebuild then takes about 5 minutes, and `vita.py sync` can update an installed app from the unpacked build. The single stages (`rip`, `project`, `build`, `package`) never delete anything; `package` makes the VPK from a kept build.
+`pipeline.py clean` then deletes everything but the VPK, about N GB: the export, the project, the builder's caches, the unpacked build, and the tools setup installed: `tools/external`'s downloads, and the files setup extracted the PS Vita SDK into, which it lists in `drifter-setup.txt` beside them, with `SCE_PSP2_SDK_DIR`. An SDK setup didn't extract stays, and so does a project the editor imported (`--unity`). To build again, run setup again. No other stage deletes anything: keep the files for 5-minute rebuilds and for `vita.py sync`, which updates an installed app from the unpacked build.
 
 To build with the Unity editor instead, add `--unity`. The player goes to `builds/drifter-2018.2.19f1-vita-unity/` and the VPK to `builds/drifter-2018.2.19f1-vita-unity.vpk`. This build keeps its work files, since the project holds the editor's import. This needs a license. The editor converts the textures and audio for the console, so its first build takes about 40 minutes with Node.js installed and 100 without (see [First build times](#first-build-times)).
 

@@ -346,8 +346,7 @@ class Setup:
         if existing:
             self.say('vita-sdk', f'already installed ({existing})')
             return existing
-        # Only a folder setup creates or fills is marked as its own, so pipeline.py all never deletes others.
-        ours = not destination.exists() or not any(destination.iterdir())
+        ours = setup_may_own(destination)
         if source.is_dir():
             if self.args.dry_run:
                 self.say('vita-sdk', f'would copy {source} to {destination}')
@@ -369,8 +368,10 @@ class Setup:
         if sdk is None:
             sys.exit(f'--vita-sdk: no PS Vita SDK in {destination} after extracting (looked for {doctor.SDK_TOOLS[0]})')
         if ours:
+            names = sorted(p.name for p in destination.iterdir())
             (destination / SDK_MARKER).write_text(
-                'Extracted by tools/setup.py. pipeline.py all deletes this folder once the VPK is made.\n',
+                '# Extracted by tools/setup.py; build.py (pipeline.py clean) deletes these once the VPK is made.\n'
+                + ''.join(f'{name}\n' for name in names),
                 encoding='utf-8',
             )
         return sdk
@@ -637,6 +638,13 @@ def environment_changed():
     ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, 'Environment', 0x0002, 5000, ctypes.byref(result))
 
 
+def setup_may_own(destination: Path):
+    """Whether setup marks the SDK folder it extracts into as its own: only one it creates or fills, not a
+    drive's root. The marker lists what setup put there, which pipeline.py clean deletes and nothing else."""
+    resolved = destination.resolve()
+    return resolved.parent != resolved and (not destination.exists() or not any(destination.iterdir()))
+
+
 def our_sdk():
     """The folder setup put the PS Vita SDK in (it has SDK_MARKER), when SCE_PSP2_SDK_DIR is in one."""
     current = setting('SCE_PSP2_SDK_DIR')
@@ -645,11 +653,18 @@ def our_sdk():
     return None
 
 
+def sdk_parts(folder: Path):
+    """What setup put in folder, as its SDK_MARKER lists."""
+    lines = (folder / SDK_MARKER).read_text(encoding='utf-8').splitlines()
+    names = [n for n in lines if n and not n.startswith('#') and n not in ('.', '..') and not set(n) & set('/\\:')]
+    return [folder / name for name in names]
+
+
 def installed_tools():
     """What setup.py and the pipeline install for the PS Vita build without the editor, which pipeline.py
-    all deletes with its work files: tools/external's downloads and setup's copy of the SDK. Not the
-    Python packages (.venv), the Visual C++ runtime, an SDK setup didn't extract, or --unity's installs."""
-    tools = [
+    clean deletes: tools/external's downloads. Not the Python packages (.venv), the Visual C++ runtime, or
+    --unity's installs; setup's copy of the SDK is sdk_parts(our_sdk())."""
+    return [
         unity_files(TARGET),
         EXTERNAL / '7-zip',
         ASSETRIPPER.parent,
@@ -660,8 +675,6 @@ def installed_tools():
         EXTERNAL / 'USCSandbox',
         EXTERNAL / 'vita-parse-core',
     ]
-    sdk = our_sdk()
-    return tools + ([sdk] if sdk else [])
 
 
 def download_only(args):
@@ -760,7 +773,7 @@ def main():
     if code == 0 and not setup.notes and not args.then_build:
         platform = ' --platform vita' if args.vita else (' --backend il2cpp' if args.il2cpp else '')
         print(f'Next: uv run tools/downgrade/pipeline.py all{platform}')
-    sys.exit(code)
+    sys.exit(code or (1 if args.then_build and setup.notes else 0))  # build.py stops for the to-dos
 
 
 if __name__ == '__main__':

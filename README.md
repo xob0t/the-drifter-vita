@@ -30,13 +30,13 @@ You need Windows 10 or 11, The Drifter from Steam and a console on HENkaku/Ensō
 
    The VPK is `builds/drifter-2018.2.19f1-vita.vpk`.
 
-It takes about 25 minutes. It downloads what the build needs: Sony's PS Vita SDK 3.570 from archive.org, and files from Unity 2018.2.19f1's installers. It doesn't install Unity or need a Unity license ([docs/builder.md](docs/builder.md)). Once the VPK is made, it deletes everything else.
+It takes about 25 minutes. It downloads what the build needs: Sony's PS Vita SDK 3.570 from archive.org, and files from Unity 2018.2.19f1's installers. It doesn't install Unity or need a Unity license ([docs/builder.md](docs/builder.md)). Once the VPK is made, it deletes its work files and the tools it downloaded; the Python packages (`.venv`) and the logs (`artifacts/`) stay.
 
 - `--vita-sdk <archive or folder>` uses your own copy of the SDK.
 - `--game <folder>` reads the game from another folder than Steam's default.
 - `--keep` keeps the work files and the tools, about N GB. A rebuild then takes about 5 minutes.
 
-`uv run build.py --unity` builds with the Unity editor instead. It installs the editor with its PS Vita module, and the SDK's Target Manager Server and Publishing Tools, and keeps its files, since they hold the editor's slow import. The VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
+`uv run build.py --unity` builds with the Unity editor instead. It installs the editor with its PS Vita module, and the SDK's Target Manager Server and Publishing Tools, and keeps its files, since the project holds the editor's slow import. The VPK is then `builds/drifter-2018.2.19f1-vita-unity.vpk`. That needs a Unity license: activate one in the editor, or patch it with [unigate](https://github.com/xob0t/unigate) (see [docs/build.md](docs/build.md#the-unity-license)). The editor's first build takes about 100 minutes, nearly all of it importing the game's audio. With [Node.js](https://nodejs.org/) installed (`winget install OpenJS.NodeJS.LTS`), it takes about 41 minutes.
 
 Install the VPK with VitaShell. For later builds you don't have to reinstall: build with `--keep`, start VitaShell's FTP server (press Select) and run `uv run tools/downgrade/vita.py sync`, which uploads only the files that changed. Set the console's address once with `uv run tools/setup.py --vita-host <address>`. [vitacompanion](https://github.com/devnoname120/vitacompanion) is optional: with it, `vita.py run` also quits the game, syncs and starts it again without you touching the console.
 

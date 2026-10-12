@@ -31,6 +31,7 @@ def generator():
             'build',
             '-c',
             'Release',
+            '--disable-build-servers',  # they would hold the .NET SDK's files, which pipeline.py clean deletes
             '-o',
             BUILD / 'bin',
             f'-p:BaseIntermediateOutputPath={BUILD / "obj"}/',
