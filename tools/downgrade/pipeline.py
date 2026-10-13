@@ -677,6 +677,7 @@ def summarize_log(log_path: Path):
 VITA_TITLE_ID = 'DRFT00001'  # matches the content ID set in DowngradeBuild.cs
 VITA_FTP = (VITA_HOST, 1337)  # VitaShell FTP server
 VITA_COMMANDS = (VITA_HOST, 1338)  # vitacompanion command server
+PACKAGE_CHUNK = 1 << 20  # package_vita compresses a file this many bytes at a time
 
 
 def vita_app_files(build: Path):
@@ -718,12 +719,25 @@ def package_vita(build: Path) -> Path:
     if not any(build.glob('*.self')):
         sys.exit(f'No PS Vita build in {build}; build it first: uv run tools/downgrade/pipeline.py all --platform vita')
     vpk = build.with_name(build.name + '.vpk')  # with_suffix would cut the version at its dots
-    with zipfile.ZipFile(vpk, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for name, source in vita_app_files(build):
+    files = list(vita_app_files(build))
+    total = sum(len(source) if isinstance(source, bytes) else source.stat().st_size for _, source in files)
+    with (
+        zipfile.ZipFile(vpk, 'w', zipfile.ZIP_DEFLATED) as archive,
+        progress.step(f'Packaging {vpk.name}', total=total, eta=True, size=True) as step,
+    ):
+        for name, source in files:
+            step.note(name)
             if isinstance(source, bytes):
                 archive.writestr(name, source)
-            else:
-                archive.write(source, name)
+                step.advance(len(source))
+                continue
+            # As ZipFile.write does, a piece at a time so the bar moves through the large files.
+            info = zipfile.ZipInfo.from_file(source, name)
+            info.compress_type, info.compress_level = archive.compression, archive.compresslevel
+            with source.open('rb') as src, archive.open(info, 'w') as dest:
+                while chunk := src.read(PACKAGE_CHUNK):
+                    dest.write(chunk)
+                    step.advance(len(chunk))
     log(f'Packaged {vpk} ({vpk.stat().st_size / 2**20:.0f} MB)')
     return vpk
 
