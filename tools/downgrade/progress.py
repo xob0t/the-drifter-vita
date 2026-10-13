@@ -89,8 +89,10 @@ def display():
         yield
         return
     p = Progress(*_columns(), console=console, transient=True, expand=True)
-    # Not started without a terminal to draw it on: it would leave an empty line when it stops.
-    with p if console.is_interactive else contextlib.nullcontext():
+    # Not started without a terminal to draw it on (it would leave an empty line when it stops), or one
+    # that can't show its spinner (a forced terminal on a cp1252 stream).
+    drawn = console.is_interactive and console.encoding.lower().startswith('utf')
+    with p if drawn else contextlib.nullcontext():
         _progress = p
         try:
             yield
@@ -122,7 +124,9 @@ def step(name, total=None, eta=False, count='items'):
     with display():
         p = _progress
         task = p.add_task(escape(name), total=total, eta=eta, count=count)
-        if eta:  # a first sample at the start: rich's speed leaves out the first sample's work
+        # A first sample at the start: rich's speed leaves out the first sample's work. (A step whose total
+        # comes later, as following()'s with a pattern, starts its samples over then.)
+        if eta:
             p.advance(task, 0)
         try:
             yield Step(p, task, escape(name))
