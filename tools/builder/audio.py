@@ -27,6 +27,7 @@ build.streams['<file>.resource'].
 Reading .ogg needs soundfile (libsndfile), which is not in pyproject: uv run --with soundfile.
 """
 
+import contextlib
 import os
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -144,8 +145,31 @@ def default_workers(jobs):
     return max(1, min(MAX_WORKERS, os.cpu_count() or 1, jobs, by_memory))
 
 
+@contextlib.contextmanager
+def one_blas_thread():
+    """Processes started inside load numpy with one OpenBLAS thread. By default OpenBLAS starts one
+    per hardware thread, and splits the encoder's matrix products over them: the sums then add up in
+    another order, and the HEVAG bytes depend on the thread count (12 clips gave 5 different
+    encodings with 1, 2, 4, 8 and 16 threads, at the same SNR). Each thread also commits about
+    32 MB, 0.5 GB a process with 16, which Windows counts against its memory. This fixes the thread
+    count only: OpenBLAS picks its kernels by CPU, and those differ too (Haswell, Sandybridge and
+    Nehalem kernels gave three different encodings)."""
+    old = os.environ.get('OPENBLAS_NUM_THREADS')
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    try:
+        yield
+    finally:
+        if old is None:
+            del os.environ['OPENBLAS_NUM_THREADS']
+        else:
+            os.environ['OPENBLAS_NUM_THREADS'] = old
+
+
 def build(assets, workers=None):
-    """[(fields, bank)] for the audio assets, in their order, encoded by default_workers() processes."""
+    """[(fields, bank)] for the audio assets, in their order, encoded in `workers` processes at once
+    (default: default_workers()). Always in processes started with one OpenBLAS thread, so the bytes
+    don't depend on the thread count, the free memory or the number of workers; they can still
+    differ between CPU families (one_blas_thread)."""
     import soundfile
 
     jobs, sizes = [], []
@@ -164,16 +188,9 @@ def build(assets, workers=None):
     if group:
         groups.append(group)
     out = [None] * len(jobs)
-    if len(groups) <= 1:
-        return _make(jobs)
-    workers = workers or default_workers(len(groups))
-    if workers == 1:
-        # Here, a group at a time: a worker would load a second interpreter where memory is short.
-        for g in groups:
-            for i, result in zip(g, _make([jobs[i] for i in g]), strict=True):
-                out[i] = result
+    if not jobs:
         return out
-    with ProcessPoolExecutor(workers) as pool:
+    with one_blas_thread(), ProcessPoolExecutor(workers or default_workers(len(groups))) as pool:
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
         for future, g in futures.items():
             for i, result in zip(g, future.result(), strict=True):

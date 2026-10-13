@@ -76,7 +76,7 @@ def main():
     built = audio.build([a for _, _, a in pairs], args.workers)
     elapsed = time.time() - started
     seconds = sum(f['m_Length'] for f, _ in built)
-    print(f'built in {elapsed:.1f} s on {args.workers} workers ({seconds / 3600:.2f} hours of audio)')
+    print(f'built in {elapsed:.1f} s on up to {args.workers} workers ({seconds / 3600:.2f} hours of audio)')
 
     totals, examples = collections.Counter(), collections.defaultdict(list)
 
@@ -143,7 +143,7 @@ def main():
     started = time.time()
     groups = [jobs[i :: args.workers * 4] for i in range(args.workers * 4)]
     results = {}
-    with ProcessPoolExecutor(args.workers) as pool:
+    with audio.one_blas_thread(), ProcessPoolExecutor(args.workers) as pool:
         for group, out in zip(groups, pool.map(quality, [[j[1:] for j in g] for g in groups]), strict=True):
             for j, q in zip(group, out, strict=True):
                 results[j[0]] = q

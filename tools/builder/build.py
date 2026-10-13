@@ -270,7 +270,7 @@ def write_streams(build, names, compare_files=False):
         if data is None:
             continue
         build.write(name, data)
-        note = compare(name, bytes(data), build.target.reference) if compare_files else ''
+        note = compare(name, data, build.target.reference) if compare_files else ''
         print(f'{name}: {len(data)} bytes {note}')
 
 
