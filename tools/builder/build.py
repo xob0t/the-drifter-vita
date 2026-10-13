@@ -199,7 +199,7 @@ class Build:
         db = self.layout.db
         mbs = [db.by_guid[g].docs[fid] for g, fid, cid in objects if cid == 114]
         self.scripts.load_models({self.scripts.resolve(d.fields['m_Script'], d.fields) for d in mbs} - {None})
-        for i, (g, fid, cid) in enumerate(progress.track(objects, file_name)):
+        for i, (g, fid, cid) in enumerate(progress.track(objects, 'Objects')):
             a = db.by_guid.get(g)
             tree, script, data = None, None, None
             if a is not None and a.is_yaml:

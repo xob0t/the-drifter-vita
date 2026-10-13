@@ -122,7 +122,7 @@ class VitaSdk(unittest.TestCase):
         self.assertIsNone(setup.extract_command(Path(r'D:\sdk.ZIP'), out, '7z.exe', 'tar.exe'))
         self.assertEqual(
             setup.extract_command(archive, out, '7z.exe', 'tar.exe'),
-            ['7z.exe', 'x', '-y', '-bso0', r'-oC:\vitasdk', r'D:\sdk.7z'],
+            ['7z.exe', 'x', '-y', '-bso0', '-bsp0', r'-oC:\vitasdk', r'D:\sdk.7z'],
         )
         self.assertEqual(
             setup.extract_command(archive, out, None, 'tar.exe'), ['tar.exe', '-xf', r'D:\sdk.7z', '-C', r'C:\vitasdk']

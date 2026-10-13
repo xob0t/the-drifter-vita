@@ -24,7 +24,9 @@ def make(out):
         with progress.step('Build folder'):
             paths.builtin_shaders()
             package.vita_folder(out)
-        data.write_all(data.Build(out, platform='vita'))
+        with progress.step('Reading the project'):  # its asset index: about 3 minutes the first time
+            build = data.Build(out, platform='vita')
+        data.write_all(build)
         with progress.step('Code module'):
             times = il2cpp.build(out)
     if times['reused']:
@@ -45,9 +47,7 @@ def main():
         sys.path.insert(0, str(paths.ROOT / 'tools' / 'downgrade'))
         import pipeline
 
-        with progress.step('VPK'):
-            vpk = pipeline.package_vita(args.out)
-        progress.done(f'The VPK: {vpk.resolve()}')
+        pipeline.package_vita(args.out)
     return 0
 
 

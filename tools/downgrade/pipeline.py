@@ -165,7 +165,7 @@ def rip(game: Path, out: Path, version: str):
             with progress.following('AssetRipper: loading', ARTIFACTS / 'assetripper.log'):
                 post(base, '/LoadFolder', {'path': str(game)})
             log(f'Exporting to {out}')
-            with progress.following('AssetRipper: exporting', ARTIFACTS / 'assetripper.log', count=EXPORT_COUNT):
+            with progress.following('AssetRipper: exporting', ARTIFACTS / 'assetripper.log', pattern=EXPORT_COUNT):
                 post(base, '/Export/UnityProject', {'path': str(out)})
             project_version = out / 'ExportedProject' / 'ProjectSettings' / 'ProjectVersion.txt'
             if not project_version.exists():
@@ -427,29 +427,32 @@ def asset_overlay(exported: Path, game: Path, version: str, platform: str, diag:
     if platform == 'windows' and not diag:
         for name in ('CrtSinglePass.shader', 'CrtSinglePass.shader.meta'):
             overlay.pop(Path('Assets') / 'Resources' / name, None)
-    upstream, replaced = upstream_overlay(exported)
-    for path in replaced:
-        overlay.pop(path, None)
-    overlay.update(upstream)
-    excluded.update(replaced)
-    overlay.update(settings_overlay(exported, platform))
-    if platform == 'windows':
-        overlay.update(native_plugin_overlay(game))
-    overlay.update(atlas_overlay(exported, game))
-    overlay.update(render_texture_overlay(exported, platform))
-    overlay.update(audio_overlay(exported, platform))
-    overlay.update(mixer_overlay(exported, platform))
-    overlay.update(template_overlay(exported, overlay))
-    overlay.update(powerquest_overlay(exported, overlay))
-    overlay.update(missing_class_overlay(exported, overlay, platform))
-    overlay.update(pixel_camera_overlay(exported, overlay, platform))
-    overlay[Path('Assets') / 'link.xml'] = link_xml(assemblies, platform).encode()
-    overlay[Path('Assets') / 'link.xml.meta'] = stable_meta('asset', 'link.xml', 'TextScriptImporter').encode()
-    overlay.update(texture_overlay(exported, game, platform))
-    overlay.update(packed_sprite_overlay(exported, overlay))
-    moved, renamed = name_overlay(exported, game, overlay)
-    overlay.update(moved)
-    excluded.update(renamed)
+    # Under a step from here on: the rules below run no tool that writes to the terminal (USCSandbox's
+    # first build, in shader_overlay, does).
+    with progress.step('Asset rules'):
+        upstream, replaced = upstream_overlay(exported)
+        for path in replaced:
+            overlay.pop(path, None)
+        overlay.update(upstream)
+        excluded.update(replaced)
+        overlay.update(settings_overlay(exported, platform))
+        if platform == 'windows':
+            overlay.update(native_plugin_overlay(game))
+        overlay.update(atlas_overlay(exported, game))
+        overlay.update(render_texture_overlay(exported, platform))
+        overlay.update(audio_overlay(exported, platform))
+        overlay.update(mixer_overlay(exported, platform))
+        overlay.update(template_overlay(exported, overlay))
+        overlay.update(powerquest_overlay(exported, overlay))
+        overlay.update(missing_class_overlay(exported, overlay, platform))
+        overlay.update(pixel_camera_overlay(exported, overlay, platform))
+        overlay[Path('Assets') / 'link.xml'] = link_xml(assemblies, platform).encode()
+        overlay[Path('Assets') / 'link.xml.meta'] = stable_meta('asset', 'link.xml', 'TextScriptImporter').encode()
+        overlay.update(texture_overlay(exported, game, platform))
+        overlay.update(packed_sprite_overlay(exported, overlay))
+        moved, renamed = name_overlay(exported, game, overlay)
+        overlay.update(moved)
+        excluded.update(renamed)
     return overlay, excluded
 
 
@@ -492,13 +495,14 @@ def assemble(rip_dir: Path, project: Path, version: str, game: Path, platform: s
     excluded |= plugin_files
 
     log(f'Synchronizing {project}')
-    for part in ('Assets', 'ProjectSettings', 'Packages'):
-        sync_tree(
-            exported / part,
-            project / part,
-            {k.relative_to(part): v for k, v in overlay.items() if k.parts[0] == part},
-            {k.relative_to(part) for k in excluded if k.parts[0] == part},
-        )
+    with progress.step(f'Synchronizing {project.name}'):
+        for part in ('Assets', 'ProjectSettings', 'Packages'):
+            sync_tree(
+                exported / part,
+                project / part,
+                {k.relative_to(part): v for k, v in overlay.items() if k.parts[0] == part},
+                {k.relative_to(part) for k in excluded if k.parts[0] == part},
+            )
 
 
 def steam_app_id(game: Path):
@@ -607,7 +611,9 @@ def build(
 
         import_jobs.prewarm(project, unity, target, server, import_jobs.default_jobs() if jobs is None else jobs)
     started = time.time()
-    with progress.following(f'Unity: building the {target} player', log_path):
+    log_path.unlink(missing_ok=True)  # the step would show the last build's last line
+    player_name = 'PS Vita' if platform == 'vita' else 'Windows'
+    with progress.following(f'Unity: building the {player_name} player', log_path):
         result = subprocess.run(
             [
                 str(unity),
@@ -723,7 +729,7 @@ def package_vita(build: Path) -> Path:
     total = sum(len(source) if isinstance(source, bytes) else source.stat().st_size for _, source in files)
     with (
         zipfile.ZipFile(vpk, 'w', zipfile.ZIP_DEFLATED) as archive,
-        progress.step(f'Packaging {vpk.name}', total=total, eta=True, size=True) as step,
+        progress.step(f'Packaging {vpk.name}', total=total, eta=True, count='MB') as step,
     ):
         for name, source in files:
             step.note(name)
@@ -733,7 +739,7 @@ def package_vita(build: Path) -> Path:
                 continue
             # As ZipFile.write does, a piece at a time so the bar moves through the large files.
             info = zipfile.ZipInfo.from_file(source, name)
-            info.compress_type, info.compress_level = archive.compression, archive.compresslevel
+            info.compress_type = archive.compression  # the level stays the default, as ZipFile(vpk, 'w') has it
             with source.open('rb') as src, archive.open(info, 'w') as dest:
                 while chunk := src.read(PACKAGE_CHUNK):
                     dest.write(chunk)
@@ -790,7 +796,7 @@ def clean(version):
     targets = work_files(version) + setup.installed_tools() + parts
     finish_deleting(*{path.parent for path in targets})
     deleted, left = 0, []
-    for path in targets:
+    for path in progress.track(targets, 'Deleting'):
         size, kept = delete(path)
         deleted, left = deleted + size, left + kept
     if sdk and not any(p.exists() for p in parts):

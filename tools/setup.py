@@ -364,15 +364,17 @@ class Setup:
             write_sdk_marker(destination, created)
         if source.is_dir():
             self.say('vita-sdk', f'copying {source} to {destination}')
-            shutil.copytree(source, destination, dirs_exist_ok=True)
+            with progress.step(f'Copying {source.name}'):
+                shutil.copytree(source, destination, dirs_exist_ok=True)
         else:
             command = extract_command(source, destination, seven_zip(), windows_tar())
             self.say('vita-sdk', f'extracting {source.name} to {destination}')
             destination.mkdir(parents=True, exist_ok=True)
-            if command is None:
-                extract_zip(source, destination)
-            else:
-                subprocess.run(command, check=True)
+            with progress.step(f'Extracting {source.name}'):
+                if command is None:
+                    extract_zip(source, destination)
+                else:
+                    subprocess.run(command, check=True)
         sdk = doctor.find_sdk_root(destination)
         if sdk is None:
             sys.exit(f'--vita-sdk: no PS Vita SDK in {destination} after extracting (looked for {doctor.SDK_TOOLS[0]})')
@@ -553,7 +555,7 @@ def extract_command(archive: Path, destination: Path, seven, tar):
     if archive.suffix.lower() == '.zip':
         return None
     if seven:
-        return [seven, 'x', '-y', '-bso0', f'-o{destination}', str(archive)]
+        return [seven, 'x', '-y', '-bso0', '-bsp0', f'-o{destination}', str(archive)]  # quiet: under a step
     if tar:
         return [tar, '-xf', str(archive), '-C', str(destination)]
     sys.exit(

@@ -169,7 +169,7 @@ def fetch(url, part: Path):
     request = urllib.request.Request(url, headers={'User-Agent': 'drifter-vita-setup'})
     with urllib.request.urlopen(request, timeout=60) as response, part.open('wb') as out:
         total = int(response.headers.get('Content-Length') or 0) or None
-        with progress.step(url.rsplit('/', 1)[-1], total=total, eta=True, size=True) as step:
+        with progress.step(f'Downloading {url.rsplit("/", 1)[-1]}', total=total, eta=True, count='MB') as step:
             while chunk := response.read(1 << 20):
                 out.write(chunk)
                 step.advance(len(chunk))

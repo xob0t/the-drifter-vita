@@ -6,7 +6,7 @@
                 step.note(s.name)                 # shown after the step's name
                 ...
                 step.advance()
-        for o in progress.track(objects, 'level0'):   # or a step for a list
+        for o in progress.track(objects, 'Objects'):  # or a step for a list
             ...
         progress.written('level0', len(data), seconds, note)
     with progress.following('IL2CPP', log):       # a tool writing a log: its last line as the note
@@ -14,12 +14,14 @@
 
 A step outside display() shows a display of its own while it runs (check_audio.py calling
 audio.build, setup.py's downloads), so the modules don't need to know who called them. The bars only
-show on a terminal and are gone when the step ends; the lines, and anything printed meanwhile, stay
-above them, and are all that a redirected output gets. Lines are never wrapped, so a log keeps them
-whole.
+show on an interactive terminal and are gone when the step ends; the lines, and anything printed
+meanwhile, stay above them, and are all that a redirected output gets. Lines are never wrapped, so a
+log keeps them whole. A tool run under a step must not write to the terminal itself (its output to a
+log file or captured): it would print through the bars.
 """
 
 import contextlib
+import datetime
 import os
 import re
 import sys
@@ -28,27 +30,31 @@ import threading
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import BarColumn, Progress, ProgressColumn, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.table import Column
 from rich.text import Text
 
 console = Console(highlight=False, soft_wrap=True)
-errors = Console(stderr=True, highlight=False, soft_wrap=True)
+errors = Console(stderr=True, highlight=False, soft_wrap=True)  # for messages outside a display
 NAME_WIDTH = 34  # written(): sharedassets59.assets.resS and Resources/unity_builtin_extra fit
 NOTE_WIDTH = 70  # characters of a log's last line following() shows
 POLL_SECONDS = 0.5  # how often following() reads the log
+TAIL_BYTES = 4096  # how much of the log's end last_line() reads
 
 _progress = None  # the display shown, if any
 
 
 class _Count(ProgressColumn):
-    """'done/total' (in MB, with the speed, for a step counting bytes), or nothing for a step
-    without a total."""
+    """What the step has done, as its `count` asks: 'done/total', the MB with the speed, or nothing."""
 
     def render(self, task):
-        if task.fields.get('size'):
+        count = task.fields.get('count')
+        if count == 'MB':
             done = f'{task.completed / 2**20:.0f}' + ('' if task.total is None else f'/{task.total / 2**20:.0f}')
             speed = f', {task.speed / 2**20:.1f} MB/s' if task.speed else ''
             return Text(f'{done} MB{speed}', 'progress.download')
-        return Text('' if task.total is None else f'{task.completed:.0f}/{task.total:.0f}', 'progress.download')
+        if count == 'items' and task.total is not None:
+            return Text(f'{task.completed:.0f}/{task.total:.0f}', 'progress.download')
+        return Text('')
 
 
 class _Left(ProgressColumn):
@@ -58,8 +64,20 @@ class _Left(ProgressColumn):
         left = task.time_remaining
         if not task.fields.get('eta') or left is None or not task.completed:
             return Text('')
-        minutes, seconds = divmod(round(left), 60)
-        return Text(f'{minutes}:{seconds:02d} left', 'progress.remaining')
+        return Text(f'{datetime.timedelta(seconds=round(left))} left', 'progress.remaining')
+
+
+def _columns():
+    """One line per step at any width: the name and note give way (cut with ...), then the bar."""
+    fixed = Column(no_wrap=True)
+    return (
+        SpinnerColumn(table_column=fixed),
+        TextColumn('{task.description}', table_column=Column(no_wrap=True, overflow='ellipsis', ratio=3)),
+        BarColumn(bar_width=None, table_column=Column(min_width=10, max_width=40, ratio=1)),
+        _Count(table_column=fixed),
+        TimeElapsedColumn(table_column=fixed),
+        _Left(table_column=fixed),
+    )
 
 
 @contextlib.contextmanager
@@ -69,8 +87,7 @@ def display():
     if _progress is not None:
         yield
         return
-    columns = (SpinnerColumn(), TextColumn('{task.description}'), BarColumn(), _Count(), TimeElapsedColumn(), _Left())
-    p = Progress(*columns, console=console, transient=True)
+    p = Progress(*_columns(), console=console, transient=True, expand=True)
     # Not started without a terminal to draw it on: it would leave an empty line when it stops.
     with p if console.is_interactive else contextlib.nullcontext():
         _progress = p
@@ -96,13 +113,14 @@ class Step:
 
 
 @contextlib.contextmanager
-def step(name, total=None, eta=False, size=False):
+def step(name, total=None, eta=False, count='items'):
     """A bar for the block (a spinner without a total), removed when it ends. Yields a Step. eta:
-    show the time left, for steps whose items take about as long as each other. size: it counts
-    bytes, shown in MB."""
+    show the time left, for steps whose items take about as long as each other. count: what the bar
+    shows it has done: 'items' (done/total), 'MB' (it counts bytes), or None (the total is a measure
+    of the work, as the audio's frames)."""
     with display():
         p = _progress
-        task = p.add_task(escape(name), total=total, eta=eta, size=size)
+        task = p.add_task(escape(name), total=total, eta=eta, count=count)
         try:
             yield Step(p, task, escape(name))
         finally:
@@ -118,19 +136,19 @@ def track(items, name):
 
 
 @contextlib.contextmanager
-def following(name, log, start=0, count=None):
+def following(name, log, start=0, pattern=None):
     """A step called `name` for a block that waits on a tool writing `log`: its note is the last line
-    the log has after byte `start`, read every POLL_SECONDS. count: a pattern whose groups are the
-    items done and their total, for a tool that logs them (AssetRipper's export); the step then has
-    a bar and the time left."""
-    with step(name, eta=count is not None) as s:
+    the log has after byte `start`, read every POLL_SECONDS. pattern: a regular expression whose
+    groups are the items done and their total, for a tool that logs them (AssetRipper's export); the
+    step then has a bar and the time left, and the note is the rest of the line."""
+    with step(name, eta=pattern is not None) as s:
         stop = threading.Event()
 
         def poll():
             while not stop.wait(POLL_SECONDS):
                 with contextlib.suppress(OSError):  # not created yet
                     line = last_line(log, start)
-                    found = count and re.search(count, line)
+                    found = pattern and re.search(pattern, line)
                     if found:
                         s.update(int(found[1]), int(found[2]))
                         line = line[found.end() :].strip()
@@ -149,10 +167,12 @@ def last_line(log, start=0):
     """The last line written to log after byte `start`, cut to NOTE_WIDTH."""
     with open(log, 'rb') as f:
         end = f.seek(0, os.SEEK_END)
-        f.seek(max(start, end - 4096))
+        at = max(start, end - TAIL_BYTES)
+        f.seek(max(at - 1, start))
+        within = at > start and f.read(1) != b'\n'  # the read starts within a line
         lines = f.read().decode('utf-8', errors='replace').splitlines()
-    if end - 4096 > start:
-        lines = lines[1:]  # the read started within a line
+    if within and len(lines) > 1:
+        lines = lines[1:]
     line = next((x.strip() for x in reversed(lines) if x.strip()), '')
     return line if len(line) <= NOTE_WIDTH else line[: NOTE_WIDTH - 3] + '...'
 
@@ -161,7 +181,10 @@ def written(name, size, seconds=None, note='', missing=None):
     """The line for a file the build wrote: its size, how long it took, the --compare result and
     the classes it lacks ({class ID: objects}) because they cannot be built yet."""
     line = Text(f'{name:<{NAME_WIDTH}} {size:>12,} bytes')
-    line.append(f'  {seconds:6.1f} s' if seconds is not None else ' ' * 10, 'dim')
+    if seconds is not None:
+        line.append(f'  {seconds:6.1f} s', 'dim')
+    elif note or missing:
+        line.append(' ' * 10)  # where the time would be, so the notes line up
     if note:
         style = 'green' if note == 'identical' else 'yellow'
         line.append(f'  {note}', style)
