@@ -295,7 +295,8 @@ class Setup:
             )
         print(f'  signature: {status}, {subject}')
         self.say('vc-runtime', f'{check.detail}: installing the current Visual C++ Redistributable')
-        code = run_elevated(installer, '/install /quiet /norestart')
+        with progress.step('Installing the Visual C++ Redistributable'):
+            code = run_elevated(installer, '/install /quiet /norestart')
         installer.unlink(missing_ok=True)
         # 3010: installed, a restart pending; 1638: a newer version is already installed.
         if code not in (0, 3010, 1638) or not doctor.check_vc_runtime().ok:
@@ -429,7 +430,8 @@ class Setup:
         if need_net35:
             # DISM downloads it from Windows Update.
             self.say('vita-sdk', 'turning on .NET Framework 3.5 (a few minutes)')
-            code = run_elevated('dism.exe', '/Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart /Quiet')
+            with progress.step('Turning on .NET Framework 3.5'):
+                code = run_elevated('dism.exe', '/Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart /Quiet')
             if code not in (0, 3010) or not doctor.dotnet35():
                 sys.exit(
                     f'DISM exited with code {code} and did not turn on .NET Framework 3.5. Turn it on in '
@@ -437,7 +439,8 @@ class Setup:
                 )
         for msi in installers:
             self.say('vita-sdk', f'installing {msi.name}')
-            code = run_elevated('msiexec.exe', f'/i "{msi}" /qn /norestart')
+            with progress.step(f'Installing {msi.name}'):
+                code = run_elevated('msiexec.exe', f'/i "{msi}" /qn /norestart')
             if code not in (0, 3010):
                 sys.exit(f'{msi.name}: msiexec exited with code {code}')
         if not self.args.keep_downloads:

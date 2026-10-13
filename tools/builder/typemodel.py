@@ -52,9 +52,14 @@ def models(managed, classes):
     BUILD.mkdir(parents=True, exist_ok=True)
     requests, output = BUILD / 'requests.json', BUILD / 'models.json'
     requests.write_text(json.dumps([{'assembly': a, 'fullname': f} for a, f in sorted(set(classes))]), encoding='utf-8')
-    subprocess.run(
+    result = subprocess.run(
         [str(DOTNET), str(generator()), str(managed), str(requests), str(output)],
-        check=True,
+        capture_output=True,  # it writes only its file; anything else (an error) would print through the bars
+        text=True,
+        errors='replace',
         env={**os.environ, 'DOTNET_ROOT': str(DOTNET.parent)},
     )
+    if result.returncode:
+        tail = (result.stdout + result.stderr).splitlines()[-30:]
+        raise RuntimeError(f'TypeModelGen failed ({result.returncode}):\n' + '\n'.join(tail))
     return {(e['assembly'], e['fullname']): e for e in json.loads(output.read_text(encoding='utf-8'))}

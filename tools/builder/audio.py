@@ -195,18 +195,24 @@ def build(assets, workers=None):
         one_blas_thread(),
         ProcessPoolExecutor(workers) as pool,
         # Counted in frames: the long clips go first, a few to a group, so clips done would say little.
-        progress.step(f'Audio ({workers} workers)', total=sum(sizes), eta=True, count=None) as step,
+        progress.step(
+            f'Encoding audio ({workers} worker{"s" if workers > 1 else ""})', total=sum(sizes), eta=True, count=None
+        ) as step,
     ):
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
         done = 0
         step.note(f'0/{len(jobs)} clips')
-        for future in as_completed(futures):
-            g = futures[future]
-            for i, result in zip(g, future.result(), strict=True):
-                out[i] = result
-            step.advance(sum(sizes[i] for i in g))
-            done += len(g)
-            step.note(f'{done}/{len(jobs)} clips')
+        try:
+            for future in as_completed(futures):
+                g = futures[future]
+                for i, result in zip(g, future.result(), strict=True):
+                    out[i] = result
+                step.advance(sum(sizes[i] for i in g))
+                done += len(g)
+                step.note(f'{done}/{len(jobs)} clips')
+        except BaseException:  # Ctrl+C or a failed group: the groups not started yet are dropped
+            pool.shutdown(cancel_futures=True)
+            raise
     return out
 
 

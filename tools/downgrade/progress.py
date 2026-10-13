@@ -1,7 +1,7 @@
 """What the tools show while they work: a bar for each step that takes a while, a line for each thing done.
 
     with progress.display():                      # make.py, build.py: one display for the whole build
-        with progress.step('Shaders', total=len(shaders), eta=True) as step:
+        with progress.step('Compiling shaders', total=len(shaders), eta=True) as step:
             for s in shaders:
                 step.note(s.name)                 # shown after the step's name
                 ...
@@ -122,6 +122,8 @@ def step(name, total=None, eta=False, count='items'):
     with display():
         p = _progress
         task = p.add_task(escape(name), total=total, eta=eta, count=count)
+        if eta:  # a first sample at the start: rich's speed leaves out the first sample's work
+            p.advance(task, 0)
         try:
             yield Step(p, task, escape(name))
         finally:

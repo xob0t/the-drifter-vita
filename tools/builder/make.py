@@ -21,7 +21,7 @@ from paths import progress
 def make(out):
     start = time.time()
     with progress.display():
-        with progress.step('Build folder'):
+        with progress.step('Preparing the build folder'):
             paths.builtin_shaders()
             package.vita_folder(out)
         with progress.step('Reading the project'):  # its asset index: about 3 minutes the first time

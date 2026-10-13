@@ -1328,7 +1328,7 @@ class ProjectShaders:
                 shown[f, pid] = name = self.source(g, fid).name
                 self.names.setdefault(name, (f, pid))
         out = {}
-        with progress.step('Shaders', total=len(placed), eta=True) as step:
+        with progress.step('Compiling shaders', total=len(placed), eta=True) as step:
             for f, pid, g, fid in placed:
                 step.note(shown.get((f, pid), ''))
                 out[f, pid] = self.build(f, g, fid)

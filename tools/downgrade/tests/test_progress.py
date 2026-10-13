@@ -55,7 +55,7 @@ class LastLine(unittest.TestCase):
 class Lines(unittest.TestCase):
     def printed(self, function, *args, **kwargs):
         out = io.StringIO()
-        with mock.patch.object(progress, 'console', Console(file=out, width=200, soft_wrap=True)):
+        with mock.patch.object(progress, 'console', Console(file=out, width=200, soft_wrap=True, force_terminal=False)):
             function(*args, **kwargs)
         return out.getvalue()
 
@@ -76,7 +76,7 @@ class Lines(unittest.TestCase):
         lines, failed = doctor.summarize(
             [doctor.Check('Game', True, 'D:/x'), doctor.Check('SDK', False, 'none', 'run setup')]
         )
-        console = Console(file=io.StringIO(), width=200, force_terminal=True, color_system='standard')
+        console = Console(file=io.StringIO(), width=200, force_terminal=True, color_system='standard', no_color=False)
         with console.capture() as captured:
             doctor.show(console, *lines)
         self.assertEqual(failed, 1)
