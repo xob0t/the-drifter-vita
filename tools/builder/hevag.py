@@ -77,6 +77,7 @@ PAIRS = np.array([(1 if j == k else 2) * _A[:, j] * _A[:, k] for j, k in UPPER],
 # The largest step of each shift 1..12, for the smallest shift that covers a residual peak.
 PEAKS = np.array([(7 << 12) >> s for s in range(1, 13)], np.float32)
 SHIFT_TRIES = np.array([0, 1])
+STRETCH_BLOCK = 1 << 20  # output samples per channel stretch() interpolates at once, to bound its temporaries
 
 
 def frames_for(samples):
@@ -88,18 +89,22 @@ def stretch(pcm, frames):
     interpolation, sample i taken at i * n / (frames * 28), matched the reference build best of the
     interpolators tried (linear, cubic B-spline family, Lanczos, FFT). pcm: (channels, n) floats in
     the 16-bit range; returns (channels, frames * 28) float32, rounded and clamped to 16 bits."""
-    n = pcm.shape[1]
+    channels, n = pcm.shape
     out_len = frames * FRAME
+    pcm = pcm.astype(np.float32, copy=False)
     if n == out_len:
-        stretched = pcm.astype(np.float32)
-    else:
-        x = np.arange(out_len) * (n / out_len)
+        return np.clip(np.round(pcm), -32768, 32767)
+    out = np.empty((channels, out_len), np.float32)
+    for a in range(0, out_len, STRETCH_BLOCK):
+        b = min(out_len, a + STRETCH_BLOCK)
+        x = np.arange(a, b) * (n / out_len)
         i = np.floor(x).astype(np.int64)
         t = (x - i).astype(np.float32)
-        p = np.pad(pcm.astype(np.float32), ((0, 0), (1, 3)), mode='edge')
-        y0, y1, y2, y3 = p[:, i], p[:, i + 1], p[:, i + 2], p[:, i + 3]
-        stretched = y1 + 0.5 * t * (y2 - y0 + t * (2 * y0 - 5 * y1 + 4 * y2 - y3 + t * (3 * (y1 - y2) + y3 - y0)))
-    return np.clip(np.round(stretched), -32768, 32767).astype(np.float32)
+        # The four neighbours, the first and last sample repeated past the ends.
+        y0, y1, y2, y3 = (pcm[:, np.clip(i + k, 0, n - 1)] for k in (-1, 0, 1, 2))
+        y = y1 + 0.5 * t * (y2 - y0 + t * (2 * y0 - 5 * y1 + 4 * y2 - y3 + t * (3 * (y1 - y2) + y3 - y0)))
+        np.clip(np.round(y), -32768, 32767, out=out[:, a:b])
+    return out
 
 
 def _segments(streams, warmup):

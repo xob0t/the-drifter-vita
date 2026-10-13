@@ -262,6 +262,18 @@ def compare(name, data, reference=paths.REFERENCE_MEDIA):
     return f'differs at byte {first} (sizes {len(data)} vs reference {len(ref)})'
 
 
+def write_streams(build, names, compare_files=False):
+    """Writes the named streams of build.streams and drops them, so they don't stay in memory
+    for the rest of the build."""
+    for name in names:
+        data = build.streams.pop(name, None)
+        if data is None:
+            continue
+        build.write(name, data)
+        note = compare(name, data, build.target.reference) if compare_files else ''
+        print(f'{name}: {len(data)} bytes {note}')
+
+
 def write_all(build, only=frozenset(), compare_files=False):
     """Writes every file of the player's data (or those named in `only`), printing each."""
     paths.builtin_shaders()
@@ -284,6 +296,8 @@ def write_all(build, only=frozenset(), compare_files=False):
         note = compare(name, data, ref) if compare_files else ''
         gaps = f'; not built yet: {dict(missing)}' if missing else ''
         print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
+        # Only building a file appends to its streams, so they are complete.
+        write_streams(build, [f'{name}.resS', audio.resource_name(name)], compare_files)
     if not only or 'Resources/unity_builtin_extra' in only:
         if build.target.name == 'windows':
             import windows_builtin_extra
@@ -300,10 +314,7 @@ def write_all(build, only=frozenset(), compare_files=False):
         print(
             f'globalgamemanagers: {len(data)} bytes', compare('globalgamemanagers', data, ref) if compare_files else ''
         )
-    for name, data in build.streams.items():
-        build.write(name, bytes(data))
-        note = compare(name, bytes(data), ref) if compare_files else ''
-        print(f'{name}: {len(data)} bytes {note}')
+    write_streams(build, list(build.streams), compare_files)
 
 
 def main():

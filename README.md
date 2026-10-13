@@ -12,7 +12,7 @@ The CRT filter is off by default because it's expensive on the Vita. Turn it on 
 
 ## Building
 
-You need Windows 10 or 11, The Drifter from Steam or GOG and a console on HENkaku/Ensō with VitaShell.
+You need Windows 10 or 11 with 8 GB of memory, The Drifter from Steam or GOG and a console on HENkaku/Ensō with VitaShell.
 
 1. Install [uv](https://docs.astral.sh/uv/): open PowerShell from the Start menu and run
 

@@ -23,7 +23,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from common import ARTIFACTS, WORK, log, meta_guid, meta_of
+from common import ARTIFACTS, WORK, log, memory_gb, meta_guid, meta_of
 
 AUDIO_SUFFIXES = ('.ogg', '.wav', '.mp3')
 UPLOADED = re.compile(
@@ -96,29 +96,6 @@ def job_project(project: Path, folder: Path, assets):
     for relative in folders:
         if (project / meta_of(relative)).exists():
             shutil.copy2(project / meta_of(relative), folder / meta_of(relative))
-
-
-def memory_gb():
-    """(total, available) physical memory in GB."""
-    import ctypes
-
-    class Status(ctypes.Structure):
-        _fields_ = [
-            ('dwLength', ctypes.c_ulong),
-            ('dwMemoryLoad', ctypes.c_ulong),
-            ('ullTotalPhys', ctypes.c_ulonglong),
-            ('ullAvailPhys', ctypes.c_ulonglong),
-            ('ullTotalPageFile', ctypes.c_ulonglong),
-            ('ullAvailPageFile', ctypes.c_ulonglong),
-            ('ullTotalVirtual', ctypes.c_ulonglong),
-            ('ullAvailVirtual', ctypes.c_ulonglong),
-            ('ullAvailExtendedVirtual', ctypes.c_ulonglong),
-        ]
-
-    status = Status()
-    status.dwLength = ctypes.sizeof(Status)
-    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
-    return status.ullTotalPhys / 2**30, status.ullAvailPhys / 2**30
 
 
 # Memory kept free for the main editor (which waits while the jobs run), the cache server and

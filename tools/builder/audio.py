@@ -27,6 +27,7 @@ build.streams['<file>.resource'].
 Reading .ogg needs soundfile (libsndfile), which is not in pyproject: uv run --with soundfile.
 """
 
+import contextlib
 import os
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -35,11 +36,19 @@ import fsb5
 import hevag
 import numpy as np
 import unityyaml
-from paths import PROJECT
+from paths import PROJECT, common
 
 HEVAG_FORMAT = 5  # AudioCompressionFormat.HEVAG
 PSP2_GROUP = '17'  # BuildTargetGroup.PSP2, the key of the importer's platform override
 JOB_FRAMES = 1 << 20  # channel frames a worker encodes at once
+# Processes that encode the clips. More than 4 hardly help: on an 8-core, 16-thread Ryzen 7 5800X3D
+# the game's 9089 clips took 528 s with 1, 242 s with 2, 144 s with 4, 122 s with 8 and 123 s with
+# 13. The largest job (MusCh9GeneralNoDrums, 5 minutes of stereo, and the clip grouped with it)
+# allocated up to 0.6 GB by tracemalloc; 1 GB a worker leaves room. The reserve is for the system
+# and the build process, which grew by 1 GB after the audio step started.
+MAX_WORKERS = 4
+MEMORY_PER_WORKER_GB = 1.0
+MEMORY_RESERVE_GB = 2
 
 
 def settings(meta):
@@ -62,11 +71,11 @@ def meta(asset):
 
 
 def read(path):
-    """(samples as (channels, n) float64 in the 16-bit range, rate)."""
+    """(samples as (channels, n) float32 in the 16-bit range, rate)."""
     import soundfile
 
     data, rate = soundfile.read(str(path), dtype='float32', always_2d=True)
-    return data.T.astype(np.float64) * 32768, rate
+    return np.ascontiguousarray(data.T) * np.float32(32768), rate
 
 
 def frequency(rate):
@@ -127,8 +136,40 @@ def _make(jobs):
     return out
 
 
+def default_workers(jobs):
+    """How many processes encode the audio: MAX_WORKERS, or fewer where there are fewer hardware
+    threads or jobs, or where the free memory holds fewer (MEMORY_PER_WORKER_GB each after
+    MEMORY_RESERVE_GB). One per thread ran a user's machine out of memory."""
+    _, available = common.memory_gb()
+    by_memory = int((available - MEMORY_RESERVE_GB) // MEMORY_PER_WORKER_GB)
+    return max(1, min(MAX_WORKERS, os.cpu_count() or 1, jobs, by_memory))
+
+
+@contextlib.contextmanager
+def one_blas_thread():
+    """Processes started inside load numpy with one OpenBLAS thread. By default OpenBLAS starts one
+    per hardware thread, and splits the encoder's matrix products over them: the sums then add up in
+    another order, and the HEVAG bytes depend on the thread count (12 clips gave 5 different
+    encodings with 1, 2, 4, 8 and 16 threads, at the same SNR). Each thread also commits about
+    32 MB, 0.5 GB a process with 16, which Windows counts against its memory. This fixes the thread
+    count only: OpenBLAS picks its kernels by CPU, and those differ too (Haswell, Sandybridge and
+    Nehalem kernels gave three different encodings)."""
+    old = os.environ.get('OPENBLAS_NUM_THREADS')
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    try:
+        yield
+    finally:
+        if old is None:
+            del os.environ['OPENBLAS_NUM_THREADS']
+        else:
+            os.environ['OPENBLAS_NUM_THREADS'] = old
+
+
 def build(assets, workers=None):
-    """[(fields, bank)] for the audio assets, in their order, encoded on all cores."""
+    """[(fields, bank)] for the audio assets, in their order, encoded in `workers` processes at once
+    (default: default_workers()). Always in processes started with one OpenBLAS thread, so the bytes
+    don't depend on the thread count, the free memory or the number of workers; they can still
+    differ between CPU families (one_blas_thread)."""
     import soundfile
 
     jobs, sizes = [], []
@@ -147,9 +188,9 @@ def build(assets, workers=None):
     if group:
         groups.append(group)
     out = [None] * len(jobs)
-    if len(groups) <= 1:
-        return _make(jobs)
-    with ProcessPoolExecutor(workers or os.cpu_count()) as pool:
+    if not jobs:
+        return out
+    with one_blas_thread(), ProcessPoolExecutor(workers or default_workers(len(groups))) as pool:
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
         for future, g in futures.items():
             for i, result in zip(g, future.result(), strict=True):
