@@ -113,7 +113,7 @@ RIP_STAMP = 'drifter-rip.txt'
 STARTUP_POLLS, POLL_SECONDS = 120, 0.5
 REQUEST_SECONDS = 3600
 # Its log's line for each asset exported: "ExportProgress : (1810/27794) Exporting 'SneakTalkR'".
-EXPORT_COUNT = r'^ExportProgress : \((\d+)/(\d+)\)'
+EXPORT_COUNT = r'^ExportProgress : \((\d+)/(\d+)\) (?:Exporting )?'
 
 
 def rip_stamp(game: Path, version: str):
@@ -672,6 +672,8 @@ SUMMARY_LINES, SUMMARY_WIDTH = 80, 300
 
 
 def summarize_log(log_path: Path):
+    if not log_path.exists():  # Unity stopped before it wrote one
+        return
     text = log_path.read_text(encoding='utf-8', errors='replace')
     counts = Counter(line.strip() for line in text.splitlines() if LOG_KEYS.search(line))
     for line, count in list(counts.items())[:SUMMARY_LINES]:
@@ -729,7 +731,7 @@ def package_vita(build: Path) -> Path:
     total = sum(len(source) if isinstance(source, bytes) else source.stat().st_size for _, source in files)
     with (
         zipfile.ZipFile(vpk, 'w', zipfile.ZIP_DEFLATED) as archive,
-        progress.step(f'Packaging {vpk.name}', total=total, eta=True, count='MB') as step,
+        progress.step('Packaging the VPK', total=total, eta=True, count='MB') as step,
     ):
         for name, source in files:
             step.note(name)
@@ -737,7 +739,8 @@ def package_vita(build: Path) -> Path:
                 archive.writestr(name, source)
                 step.advance(len(source))
                 continue
-            # As ZipFile.write does, a piece at a time so the bar moves through the large files.
+            # The entry ZipFile.write would write, compressed a piece at a time so the bar moves through
+            # the large files.
             info = zipfile.ZipInfo.from_file(source, name)
             info.compress_type = archive.compression  # the level stays the default, as ZipFile(vpk, 'w') has it
             with source.open('rb') as src, archive.open(info, 'w') as dest:

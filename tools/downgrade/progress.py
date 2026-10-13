@@ -68,7 +68,8 @@ class _Left(ProgressColumn):
 
 
 def _columns():
-    """One line per step at any width: the name and note give way (cut with ...), then the bar."""
+    """One line per step: the name and note give way (cut with …), then the bar. The time left keeps its
+    width, so the bars don't move when a step that shows it starts or ends."""
     fixed = Column(no_wrap=True)
     return (
         SpinnerColumn(table_column=fixed),
@@ -76,7 +77,7 @@ def _columns():
         BarColumn(bar_width=None, table_column=Column(min_width=10, max_width=40, ratio=1)),
         _Count(table_column=fixed),
         TimeElapsedColumn(table_column=fixed),
-        _Left(table_column=fixed),
+        _Left(table_column=Column(no_wrap=True, min_width=len('0:00:00 left'))),
     )
 
 
@@ -171,7 +172,7 @@ def last_line(log, start=0):
         f.seek(max(at - 1, start))
         within = at > start and f.read(1) != b'\n'  # the read starts within a line
         lines = f.read().decode('utf-8', errors='replace').splitlines()
-    if within and len(lines) > 1:
+    if within and any(x.strip() for x in lines[1:]):
         lines = lines[1:]
     line = next((x.strip() for x in reversed(lines) if x.strip()), '')
     return line if len(line) <= NOTE_WIDTH else line[: NOTE_WIDTH - 3] + '...'

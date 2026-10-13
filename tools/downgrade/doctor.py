@@ -319,7 +319,7 @@ STATUS_STYLES = {'ok': 'green', 'MISSING': 'bold red', 'optional': 'yellow'}
 
 
 def show(console, *lines):
-    """Print lines, with the status of summarize()'s in color."""
+    """Print lines, coloring the status of those summarize() made."""
     for line in lines:
         text = Text(line)
         style = STATUS_STYLES.get(line[3:11].strip()) if line.startswith('  [') else None
@@ -911,10 +911,11 @@ def preflight(stage, platform, backend, game: Path, version=TARGET, unity=False)
     lines, failed = summarize(checks)
     if failed:
         show(progress.errors, f'pipeline.py {stage}: {failed} requirement(s) missing:', *lines)
-        show(
-            progress.errors,
-            f'Full checklist: {SETUP} doctor --target {target_of(platform, backend)}. '
-            'Skip these checks with --skip-checks.',
+        progress.errors.print(
+            Text(
+                f'Full checklist: {SETUP} doctor --target {target_of(platform, backend)}. '
+                'Skip these checks with --skip-checks.'
+            )
         )
         sys.exit(1)
 

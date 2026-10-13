@@ -25,20 +25,24 @@ def generator():
     dll, stamp = BUILD / 'bin' / 'TypeModelGen.dll', BUILD / 'stamp'
     if dll.exists() and stamp.exists() and stamp.read_text() == digest:
         return dll
-    common.run(
-        [
-            DOTNET,
-            'build',
-            '-c',
-            'Release',
-            '--disable-build-servers',  # they would hold the .NET SDK's files, which pipeline.py clean deletes
-            '-o',
-            BUILD / 'bin',
-            f'-p:BaseIntermediateOutputPath={BUILD / "obj"}/',
-            f'-p:CecilPath={common.mono_cecil()}',
-            SOURCE / 'Gen.csproj',
-        ]
-    )
+    command = [
+        DOTNET,
+        'build',
+        '-c',
+        'Release',
+        '--disable-build-servers',  # they would hold the .NET SDK's files, which pipeline.py clean deletes
+        '-o',
+        BUILD / 'bin',
+        f'-p:BaseIntermediateOutputPath={BUILD / "obj"}/',
+        f'-p:CecilPath={common.mono_cecil()}',
+        SOURCE / 'Gen.csproj',
+    ]
+    common.log('Building TypeModelGen')
+    # Its output captured: make.py builds it under a step, and it would print through the bars.
+    result = subprocess.run([str(c) for c in command], capture_output=True, text=True, errors='replace')
+    if result.returncode:
+        tail = (result.stdout + result.stderr).splitlines()[-30:]
+        raise RuntimeError(f'dotnet build of TypeModelGen failed ({result.returncode}):\n' + '\n'.join(tail))
     stamp.write_text(digest)
     return dll
 
