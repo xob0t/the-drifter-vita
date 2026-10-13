@@ -41,6 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'downgrade'))
 import doctor
+import progress
 from common import (
     ASSETRIPPER,
     CECIL,
@@ -59,6 +60,7 @@ from common import (
     setting,
     unity_files,
 )
+from rich.text import Text
 
 DOWNLOADS = WORK / 'installers'
 # In a folder setup extracted or copied the PS Vita SDK into: what setup put there, which pipeline.py
@@ -76,7 +78,7 @@ class Setup:
         self.license_check = None
 
     def say(self, step, message):
-        print(f'[{step}] {message}', flush=True)
+        progress.console.print(Text.assemble((f'[{step}]', 'cyan'), f' {message}'))
 
     def confirm(self, question):
         if self.args.yes:
@@ -150,7 +152,8 @@ class Setup:
         download(url, installer, sha256)
         verify_unity_signature(installer)
         self.say(module, f'installing {name} into {target}')
-        code = run_installer(installer, f'/S /D={target}')
+        with progress.step(f'Installing {name}'):
+            code = run_installer(installer, f'/S /D={target}')
         if code != 0 or not (target / doctor.EDITOR_FILES[module]).exists():
             sys.exit(f'{installer.name} exited with code {code} and did not install {doctor.EDITOR_FILES[module]}')
         if not self.args.keep_downloads:
@@ -186,9 +189,10 @@ class Setup:
             self.say('unity-files', f'extracting from {installer.name}')
             out = partial if module == 'editor' else partial / 'vita'
             # 7-Zip exits with 1 for a warning: it reads the installer's script but not its commands.
-            code = subprocess.run(
-                [seven, 'x', '-y', '-bso0', '-bsp0', f'-o{out}', str(installer), *doctor.UNITY_FILES[module]]
-            ).returncode
+            with progress.step(f'Extracting {installer.name}'):
+                code = subprocess.run(
+                    [seven, 'x', '-y', '-bso0', '-bsp0', f'-o{out}', str(installer), *doctor.UNITY_FILES[module]]
+                ).returncode
             if code not in (0, 1):
                 sys.exit(f'7-Zip exited with code {code} extracting {installer.name}')
             if not self.args.keep_downloads:

@@ -4,8 +4,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# common.py and progress.py are there; the builder's modules import progress from here.
 sys.path.insert(0, str(ROOT / 'tools' / 'downgrade'))
 import common  # noqa: E402
+import progress  # noqa: E402, F401
 
 TARGET = common.TARGET
 # The translated project the pipeline's rules produce (pipeline.py project --platform vita).

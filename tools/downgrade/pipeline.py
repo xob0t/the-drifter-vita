@@ -41,6 +41,7 @@ from pathlib import Path
 
 import fastnoise
 import livearea
+import progress
 from asset_rules import (
     atlas_overlay,
     audio_overlay,
@@ -111,6 +112,8 @@ RIP_STAMP = 'drifter-rip.txt'
 # loading the game or exporting the project is one request that can take up to REQUEST_SECONDS.
 STARTUP_POLLS, POLL_SECONDS = 120, 0.5
 REQUEST_SECONDS = 3600
+# Its log's line for each asset exported: "ExportProgress : (1810/27794) Exporting 'SneakTalkR'".
+EXPORT_COUNT = r'^ExportProgress : \((\d+)/(\d+)\)'
 
 
 def rip_stamp(game: Path, version: str):
@@ -159,9 +162,11 @@ def rip(game: Path, out: Path, version: str):
             if out.exists():
                 shutil.rmtree(out)
             log(f'Loading {game}')
-            post(base, '/LoadFolder', {'path': str(game)})
+            with progress.following('AssetRipper: loading', ARTIFACTS / 'assetripper.log'):
+                post(base, '/LoadFolder', {'path': str(game)})
             log(f'Exporting to {out}')
-            post(base, '/Export/UnityProject', {'path': str(out)})
+            with progress.following('AssetRipper: exporting', ARTIFACTS / 'assetripper.log', count=EXPORT_COUNT):
+                post(base, '/Export/UnityProject', {'path': str(out)})
             project_version = out / 'ExportedProject' / 'ProjectSettings' / 'ProjectVersion.txt'
             if not project_version.exists():
                 raise RuntimeError('AssetRipper export produced no project; see ' + str(ARTIFACTS / 'assetripper.log'))
@@ -602,27 +607,28 @@ def build(
 
         import_jobs.prewarm(project, unity, target, server, import_jobs.default_jobs() if jobs is None else jobs)
     started = time.time()
-    result = subprocess.run(
-        [
-            str(unity),
-            '-batchmode',
-            '-nographics',
-            '-projectPath',
-            str(project),
-            '-executeMethod',
-            'DowngradeBuild.Build',
-            '-buildOutput',
-            str(output),
-            '-scriptingBackend',
-            backend,
-            '-buildTarget',
-            target,
-            *(['-CacheServerIPAddress', server] if server else []),
-            *(['-developmentBuild'] if development else []),
-            '-logFile',
-            str(log_path),
-        ]
-    )
+    with progress.following(f'Unity: building the {target} player', log_path):
+        result = subprocess.run(
+            [
+                str(unity),
+                '-batchmode',
+                '-nographics',
+                '-projectPath',
+                str(project),
+                '-executeMethod',
+                'DowngradeBuild.Build',
+                '-buildOutput',
+                str(output),
+                '-scriptingBackend',
+                backend,
+                '-buildTarget',
+                target,
+                *(['-CacheServerIPAddress', server] if server else []),
+                *(['-developmentBuild'] if development else []),
+                '-logFile',
+                str(log_path),
+            ]
+        )
     log(f'Unity exited {result.returncode} after {time.time() - started:.0f}s; log {log_path}')
     summarize_log(log_path)
     if result.returncode != 0:

@@ -11,7 +11,9 @@ import sys
 import time
 from pathlib import Path
 
+import progress
 import truststore
+from rich.text import Text
 
 # Every download checks TLS with Windows' certificate store, which fetches missing root certificates
 # on demand. Python's own copy of the store lacks them on a fresh Windows (archive.org's, for one).
@@ -99,7 +101,7 @@ def vita_host():
 
 
 def log(message):
-    print(f'[{time.strftime("%H:%M:%S")}] {message}', flush=True)
+    progress.console.print(Text.assemble((time.strftime('[%H:%M:%S]'), 'dim'), ' ', str(message)))
 
 
 def run(command):
@@ -166,16 +168,11 @@ def fetch(url, part: Path):
 
     request = urllib.request.Request(url, headers={'User-Agent': 'drifter-vita-setup'})
     with urllib.request.urlopen(request, timeout=60) as response, part.open('wb') as out:
-        total = int(response.headers.get('Content-Length') or 0)
-        done, shown = 0, -1
-        while chunk := response.read(1 << 20):
-            out.write(chunk)
-            done += len(chunk)
-            if total and sys.stdout.isatty() and done * 20 // total != shown:
-                shown = done * 20 // total
-                print(f'\r  {done >> 20} of {total >> 20} MB', end='', flush=True)
-    if total and sys.stdout.isatty():
-        print()
+        total = int(response.headers.get('Content-Length') or 0) or None
+        with progress.step(url.rsplit('/', 1)[-1], total=total, eta=True, size=True) as step:
+            while chunk := response.read(1 << 20):
+                out.write(chunk)
+                step.advance(len(chunk))
 
 
 def memory_gb():

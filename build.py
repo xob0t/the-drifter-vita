@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'tools' / 'downgrade'))
+import progress  # noqa: E402
 from common import registry_env  # noqa: E402
 
 RETRY = 'Fix what it says above and run uv run build.py again: it picks up where it stopped.'
@@ -31,7 +32,7 @@ def run(failed, script, *args):
             env[name] = value
     code = subprocess.run([sys.executable, str(ROOT / script), *args], env=env).returncode
     if code:
-        sys.exit(f'\nbuild.py: {failed} (exit code {code}).')
+        progress.fail(f'\nbuild.py: {failed} (exit code {code}).')
 
 
 def main():
@@ -57,11 +58,11 @@ def main():
     if not args.keep and not args.unity:
         clean = 'uv run tools/downgrade/pipeline.py clean'
         run(f'the VPK is ready ({vpk}), but cleaning up failed. Try again: {clean}', *clean.split()[2:])
-    print(f'\nDone. The VPK: {vpk}')
+    progress.done(f'\nDone. The VPK: {vpk}')
 
 
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        sys.exit('\nStopped. Run uv run build.py again to continue.')
+        progress.fail('\nStopped. Run uv run build.py again to continue.')

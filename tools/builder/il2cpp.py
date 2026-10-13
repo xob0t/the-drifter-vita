@@ -52,8 +52,8 @@ from pathlib import Path
 import dnfile
 import editor_settings
 import paths
-import progress
 import unityyaml
+from paths import progress
 
 IL2CPP_BUILD = paths.EDITOR_DATA / 'il2cpp' / 'build'
 UNITY_LINKER = IL2CPP_BUILD / 'UnityLinker.exe'
@@ -470,46 +470,21 @@ def tool_env():
     return env
 
 
-LOG_POLL_SECONDS = 0.5
-NOTE_WIDTH = 70  # characters of the log's last line run() shows
-
-
 def run(command, log, name, cwd=None):
     """Run a tool, its output to a log file, under a step called `name` that shows the log's last
     line; on failure show the log's tail."""
     start = time.time()
-    with log.open('w', encoding='utf-8', errors='replace') as f, progress.step(name) as step:
+    with log.open('w', encoding='utf-8', errors='replace') as f:
         f.write(subprocess.list2cmdline([str(c) for c in command]) + '\n\n')
         f.flush()
-        header = log.stat().st_size
-        process = subprocess.Popen(
-            [str(c) for c in command], cwd=cwd, env=tool_env(), stdout=f, stderr=subprocess.STDOUT
-        )
-        try:
-            while process.poll() is None:
-                step.note(last_line(log, header))
-                time.sleep(LOG_POLL_SECONDS)
-        finally:
-            if process.poll() is None:  # stopped with Ctrl+C
-                process.kill()
-                process.wait()
-    if process.returncode:
+        with progress.following(name, log, start=log.stat().st_size):
+            result = subprocess.run(
+                [str(c) for c in command], cwd=cwd, env=tool_env(), stdout=f, stderr=subprocess.STDOUT, check=False
+            )
+    if result.returncode:
         tail = log.read_text(encoding='utf-8', errors='replace').splitlines()[-30:]
-        raise RuntimeError(f'{Path(command[0]).name} failed ({process.returncode}), see {log}:\n' + '\n'.join(tail))
+        raise RuntimeError(f'{Path(command[0]).name} failed ({result.returncode}), see {log}:\n' + '\n'.join(tail))
     return time.time() - start
-
-
-def last_line(log, start=0):
-    """The last line a tool has written to its log after byte `start` (past the command line run()
-    writes first), cut to NOTE_WIDTH."""
-    with log.open('rb') as f:
-        end = f.seek(0, os.SEEK_END)
-        f.seek(max(start, end - 4096))
-        lines = f.read().decode('utf-8', errors='replace').splitlines()
-    if end - 4096 > start:
-        lines = lines[1:]  # the read started within a line
-    line = next((x.strip() for x in reversed(lines) if x.strip()), '')
-    return line if len(line) <= NOTE_WIDTH else line[: NOTE_WIDTH - 3] + '...'
 
 
 def digest(*parts):

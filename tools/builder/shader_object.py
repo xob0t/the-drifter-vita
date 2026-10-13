@@ -37,11 +37,10 @@ from pathlib import Path
 
 import editor_settings
 import lz4.block
-import progress
 import psp2cgc
 import shader_bindings as bindings
 from gxp import params as gxp_params
-from paths import EDITOR_DATA, PROJECT, WORK
+from paths import EDITOR_DATA, PROJECT, WORK, progress
 from shader_blob import blob as assemble_blob
 from shader_blob import subprogram as blob_record
 from shaderlab import Program, pragmas, scan, unity_input

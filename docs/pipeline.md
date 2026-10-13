@@ -6,7 +6,7 @@
 
 `tools/setup.py` installs the requirements and runs the checks in `tools/downgrade/doctor.py`. Everything that does the translation is in `tools/downgrade`:
 
-- `pipeline.py` runs the stages. `common.py` has the paths and helpers.
+- `pipeline.py` runs the stages. `common.py` has the paths and helpers. `progress.py` shows the progress of setup, the pipeline and the builder (rich): bars for the downloads, AssetRipper's export and the builder's steps, and the last line of a long tool's log.
 - `asset_rules.py` and `shader_rules.py` rewrite scenes, prefabs, textures, audio, settings and shaders. `shaders/` has the new shaders, `patches/` a fix to USCSandbox.
 - `DowngradeAssemblies.cs` and `rewriter/*.cs` rewrite the game's assemblies. The rewritten code calls DrifterCompat (`Compat2018.cs` and `compat/*.cs`), which fills in what Unity 2018 lacks and holds the performance rules. `unity/DowngradeBuild.cs` is the editor's build entry point.
 - `diag/*.cs` is the test probe. `diag.py`, `sweep.py` and the other PC tools in [parity.md](parity.md) run it.

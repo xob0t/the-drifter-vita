@@ -31,12 +31,12 @@ import managers
 import mixer
 import paths
 import preload as preloadlib
-import progress
 import scene as scenelib
 import scripts as scriptlib
 import shader_object
 import typehash
 from layout import Layout
+from paths import progress
 from placement import AssetContext, Placement, first_path_id
 from writer import SerializedWriter, TypeHashes
 

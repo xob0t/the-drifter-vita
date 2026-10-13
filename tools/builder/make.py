@@ -15,7 +15,7 @@ import build as data
 import il2cpp
 import package
 import paths
-import progress
+from paths import progress
 
 
 def make(out):
@@ -45,7 +45,9 @@ def main():
         sys.path.insert(0, str(paths.ROOT / 'tools' / 'downgrade'))
         import pipeline
 
-        pipeline.package_vita(args.out)
+        with progress.step('VPK'):
+            vpk = pipeline.package_vita(args.out)
+        progress.done(f'The VPK: {vpk.resolve()}')
     return 0
 
 

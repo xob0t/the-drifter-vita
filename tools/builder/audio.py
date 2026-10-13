@@ -35,9 +35,8 @@ from pathlib import Path
 import fsb5
 import hevag
 import numpy as np
-import progress
 import unityyaml
-from paths import PROJECT, common
+from paths import PROJECT, common, progress
 
 HEVAG_FORMAT = 5  # AudioCompressionFormat.HEVAG
 PSP2_GROUP = '17'  # BuildTargetGroup.PSP2, the key of the importer's platform override

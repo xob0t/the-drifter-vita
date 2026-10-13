@@ -20,6 +20,7 @@ import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+import progress
 from common import (
     ASSETRIPPER,
     CECIL,
@@ -37,6 +38,7 @@ from common import (
     env,
     file_hash,
 )
+from rich.text import Text
 
 SETUP = 'uv run tools/setup.py'
 
@@ -311,6 +313,19 @@ def summarize(checks):
         if not check.ok and check.fix:
             lines.append(f'  {"":10} {"":<{width}}  fix: {check.fix}')
     return lines, failed
+
+
+STATUS_STYLES = {'ok': 'green', 'MISSING': 'bold red', 'optional': 'yellow'}
+
+
+def show(console, *lines):
+    """Print lines, with the status of summarize()'s in color."""
+    for line in lines:
+        text = Text(line)
+        style = STATUS_STYLES.get(line[3:11].strip()) if line.startswith('  [') else None
+        if style:
+            text.stylize(style, 2, 12)
+        console.print(text)
 
 
 # ---------------------------------------------------------------- the machine
@@ -895,11 +910,11 @@ def preflight(stage, platform, backend, game: Path, version=TARGET, unity=False)
     checks = stage_checks(stage, platform, backend, game, version, unity)
     lines, failed = summarize(checks)
     if failed:
-        print(f'pipeline.py {stage}: {failed} requirement(s) missing:', *lines, sep='\n', file=sys.stderr)
-        print(
+        show(progress.errors, f'pipeline.py {stage}: {failed} requirement(s) missing:', *lines)
+        show(
+            progress.errors,
             f'Full checklist: {SETUP} doctor --target {target_of(platform, backend)}. '
             'Skip these checks with --skip-checks.',
-            file=sys.stderr,
         )
         sys.exit(1)
 
@@ -918,11 +933,11 @@ def main(argv=None, license_check=None):
     args = parser.parse_args(argv)
     checks = checks_for(args.target, default_game(), license=license_check or args.license)
     lines, failed = summarize(checks)
-    print(f'Requirements for the {args.target} target:', *lines, sep='\n')
+    show(progress.console, f'Requirements for the {args.target} target:', *lines)
     if failed:
-        print(f'{failed} required item(s) missing.')
+        progress.console.print(Text(f'{failed} required item(s) missing.', 'bold red'))
         return 1
-    print('Everything required is in place.')
+    progress.console.print(Text('Everything required is in place.', 'bold green'))
     return 0
 
 
