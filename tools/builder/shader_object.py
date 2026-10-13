@@ -40,7 +40,7 @@ import lz4.block
 import psp2cgc
 import shader_bindings as bindings
 from gxp import params as gxp_params
-from paths import EDITOR_DATA, PROJECT, WORK
+from paths import EDITOR_DATA, PROJECT, WORK, progress
 from shader_blob import blob as assemble_blob
 from shader_blob import subprogram as blob_record
 from shaderlab import Program, pragmas, scan, unity_input
@@ -1322,10 +1322,18 @@ class ProjectShaders:
         """{(file, path ID): Shader tree} for every placed shader; built in file order, which is
         the order the keyword registry sees them."""
         placed = self.placed(files)
+        shown = {}
         for f, pid, g, fid in placed:
             with contextlib.suppress(ParseError, KeyError, OSError):
-                self.names.setdefault(self.source(g, fid).name, (f, pid))
-        return {(f, pid): self.build(f, g, fid) for f, pid, g, fid in placed}
+                shown[f, pid] = name = self.source(g, fid).name
+                self.names.setdefault(name, (f, pid))
+        out = {}
+        with progress.step('Compiling shaders', total=len(placed), eta=True) as step:
+            for f, pid, g, fid in placed:
+                step.note(shown.get((f, pid), ''))
+                out[f, pid] = self.build(f, g, fid)
+                step.advance()
+        return out
 
 
 @cache

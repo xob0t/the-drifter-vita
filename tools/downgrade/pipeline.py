@@ -41,6 +41,7 @@ from pathlib import Path
 
 import fastnoise
 import livearea
+import progress
 from asset_rules import (
     atlas_overlay,
     audio_overlay,
@@ -111,6 +112,8 @@ RIP_STAMP = 'drifter-rip.txt'
 # loading the game or exporting the project is one request that can take up to REQUEST_SECONDS.
 STARTUP_POLLS, POLL_SECONDS = 120, 0.5
 REQUEST_SECONDS = 3600
+# Its log's line for each asset exported: "ExportProgress : (1810/27794) Exporting 'SneakTalkR'".
+EXPORT_COUNT = r'^ExportProgress : \((\d+)/(\d+)\) (?:Exporting )?'
 
 
 def rip_stamp(game: Path, version: str):
@@ -159,9 +162,11 @@ def rip(game: Path, out: Path, version: str):
             if out.exists():
                 shutil.rmtree(out)
             log(f'Loading {game}')
-            post(base, '/LoadFolder', {'path': str(game)})
+            with progress.following('AssetRipper: loading', ARTIFACTS / 'assetripper.log'):
+                post(base, '/LoadFolder', {'path': str(game)})
             log(f'Exporting to {out}')
-            post(base, '/Export/UnityProject', {'path': str(out)})
+            with progress.following('AssetRipper: exporting', ARTIFACTS / 'assetripper.log', pattern=EXPORT_COUNT):
+                post(base, '/Export/UnityProject', {'path': str(out)})
             project_version = out / 'ExportedProject' / 'ProjectSettings' / 'ProjectVersion.txt'
             if not project_version.exists():
                 raise RuntimeError('AssetRipper export produced no project; see ' + str(ARTIFACTS / 'assetripper.log'))
@@ -422,29 +427,32 @@ def asset_overlay(exported: Path, game: Path, version: str, platform: str, diag:
     if platform == 'windows' and not diag:
         for name in ('CrtSinglePass.shader', 'CrtSinglePass.shader.meta'):
             overlay.pop(Path('Assets') / 'Resources' / name, None)
-    upstream, replaced = upstream_overlay(exported)
-    for path in replaced:
-        overlay.pop(path, None)
-    overlay.update(upstream)
-    excluded.update(replaced)
-    overlay.update(settings_overlay(exported, platform))
-    if platform == 'windows':
-        overlay.update(native_plugin_overlay(game))
-    overlay.update(atlas_overlay(exported, game))
-    overlay.update(render_texture_overlay(exported, platform))
-    overlay.update(audio_overlay(exported, platform))
-    overlay.update(mixer_overlay(exported, platform))
-    overlay.update(template_overlay(exported, overlay))
-    overlay.update(powerquest_overlay(exported, overlay))
-    overlay.update(missing_class_overlay(exported, overlay, platform))
-    overlay.update(pixel_camera_overlay(exported, overlay, platform))
-    overlay[Path('Assets') / 'link.xml'] = link_xml(assemblies, platform).encode()
-    overlay[Path('Assets') / 'link.xml.meta'] = stable_meta('asset', 'link.xml', 'TextScriptImporter').encode()
-    overlay.update(texture_overlay(exported, game, platform))
-    overlay.update(packed_sprite_overlay(exported, overlay))
-    moved, renamed = name_overlay(exported, game, overlay)
-    overlay.update(moved)
-    excluded.update(renamed)
+    # Under a step from here on: the rules below run no tool that writes to the terminal (USCSandbox's
+    # first build, in shader_overlay, does).
+    with progress.step('Asset rules'):
+        upstream, replaced = upstream_overlay(exported)
+        for path in replaced:
+            overlay.pop(path, None)
+        overlay.update(upstream)
+        excluded.update(replaced)
+        overlay.update(settings_overlay(exported, platform))
+        if platform == 'windows':
+            overlay.update(native_plugin_overlay(game))
+        overlay.update(atlas_overlay(exported, game))
+        overlay.update(render_texture_overlay(exported, platform))
+        overlay.update(audio_overlay(exported, platform))
+        overlay.update(mixer_overlay(exported, platform))
+        overlay.update(template_overlay(exported, overlay))
+        overlay.update(powerquest_overlay(exported, overlay))
+        overlay.update(missing_class_overlay(exported, overlay, platform))
+        overlay.update(pixel_camera_overlay(exported, overlay, platform))
+        overlay[Path('Assets') / 'link.xml'] = link_xml(assemblies, platform).encode()
+        overlay[Path('Assets') / 'link.xml.meta'] = stable_meta('asset', 'link.xml', 'TextScriptImporter').encode()
+        overlay.update(texture_overlay(exported, game, platform))
+        overlay.update(packed_sprite_overlay(exported, overlay))
+        moved, renamed = name_overlay(exported, game, overlay)
+        overlay.update(moved)
+        excluded.update(renamed)
     return overlay, excluded
 
 
@@ -487,13 +495,14 @@ def assemble(rip_dir: Path, project: Path, version: str, game: Path, platform: s
     excluded |= plugin_files
 
     log(f'Synchronizing {project}')
-    for part in ('Assets', 'ProjectSettings', 'Packages'):
-        sync_tree(
-            exported / part,
-            project / part,
-            {k.relative_to(part): v for k, v in overlay.items() if k.parts[0] == part},
-            {k.relative_to(part) for k in excluded if k.parts[0] == part},
-        )
+    with progress.step(f'Synchronizing {project.name}'):
+        for part in ('Assets', 'ProjectSettings', 'Packages'):
+            sync_tree(
+                exported / part,
+                project / part,
+                {k.relative_to(part): v for k, v in overlay.items() if k.parts[0] == part},
+                {k.relative_to(part) for k in excluded if k.parts[0] == part},
+            )
 
 
 def steam_app_id(game: Path):
@@ -602,27 +611,30 @@ def build(
 
         import_jobs.prewarm(project, unity, target, server, import_jobs.default_jobs() if jobs is None else jobs)
     started = time.time()
-    result = subprocess.run(
-        [
-            str(unity),
-            '-batchmode',
-            '-nographics',
-            '-projectPath',
-            str(project),
-            '-executeMethod',
-            'DowngradeBuild.Build',
-            '-buildOutput',
-            str(output),
-            '-scriptingBackend',
-            backend,
-            '-buildTarget',
-            target,
-            *(['-CacheServerIPAddress', server] if server else []),
-            *(['-developmentBuild'] if development else []),
-            '-logFile',
-            str(log_path),
-        ]
-    )
+    log_path.unlink(missing_ok=True)  # the step would show the last build's last line
+    player_name = 'PS Vita' if platform == 'vita' else 'Windows'
+    with progress.following(f'Unity: building the {player_name} player', log_path):
+        result = subprocess.run(
+            [
+                str(unity),
+                '-batchmode',
+                '-nographics',
+                '-projectPath',
+                str(project),
+                '-executeMethod',
+                'DowngradeBuild.Build',
+                '-buildOutput',
+                str(output),
+                '-scriptingBackend',
+                backend,
+                '-buildTarget',
+                target,
+                *(['-CacheServerIPAddress', server] if server else []),
+                *(['-developmentBuild'] if development else []),
+                '-logFile',
+                str(log_path),
+            ]
+        )
     log(f'Unity exited {result.returncode} after {time.time() - started:.0f}s; log {log_path}')
     summarize_log(log_path)
     if result.returncode != 0:
@@ -660,6 +672,8 @@ SUMMARY_LINES, SUMMARY_WIDTH = 80, 300
 
 
 def summarize_log(log_path: Path):
+    if not log_path.exists():  # Unity stopped before it wrote one
+        return
     text = log_path.read_text(encoding='utf-8', errors='replace')
     counts = Counter(line.strip() for line in text.splitlines() if LOG_KEYS.search(line))
     for line, count in list(counts.items())[:SUMMARY_LINES]:
@@ -671,6 +685,7 @@ def summarize_log(log_path: Path):
 VITA_TITLE_ID = 'DRFT00001'  # matches the content ID set in DowngradeBuild.cs
 VITA_FTP = (VITA_HOST, 1337)  # VitaShell FTP server
 VITA_COMMANDS = (VITA_HOST, 1338)  # vitacompanion command server
+PACKAGE_CHUNK = 1 << 20  # package_vita compresses a file this many bytes at a time
 
 
 def vita_app_files(build: Path):
@@ -712,12 +727,26 @@ def package_vita(build: Path) -> Path:
     if not any(build.glob('*.self')):
         sys.exit(f'No PS Vita build in {build}; build it first: uv run tools/downgrade/pipeline.py all --platform vita')
     vpk = build.with_name(build.name + '.vpk')  # with_suffix would cut the version at its dots
-    with zipfile.ZipFile(vpk, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for name, source in vita_app_files(build):
+    files = list(vita_app_files(build))
+    total = sum(len(source) if isinstance(source, bytes) else source.stat().st_size for _, source in files)
+    with (
+        zipfile.ZipFile(vpk, 'w', zipfile.ZIP_DEFLATED) as archive,
+        progress.step('Packaging the VPK', total=total, eta=True, count='MB') as step,
+    ):
+        for name, source in files:
+            step.note(name)
             if isinstance(source, bytes):
                 archive.writestr(name, source)
-            else:
-                archive.write(source, name)
+                step.advance(len(source))
+                continue
+            # The entry ZipFile.write would write, compressed a piece at a time so the bar moves through
+            # the large files.
+            info = zipfile.ZipInfo.from_file(source, name)
+            info.compress_type = archive.compression  # the level stays the default, as ZipFile(vpk, 'w') has it
+            with source.open('rb') as src, archive.open(info, 'w') as dest:
+                while chunk := src.read(PACKAGE_CHUNK):
+                    dest.write(chunk)
+                    step.advance(len(chunk))
     log(f'Packaged {vpk} ({vpk.stat().st_size / 2**20:.0f} MB)')
     return vpk
 
@@ -770,7 +799,7 @@ def clean(version):
     targets = work_files(version) + setup.installed_tools() + parts
     finish_deleting(*{path.parent for path in targets})
     deleted, left = 0, []
-    for path in targets:
+    for path in progress.track(targets, 'Deleting'):
         size, kept = delete(path)
         deleted, left = deleted + size, left + kept
     if sdk and not any(p.exists() for p in parts):

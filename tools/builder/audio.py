@@ -29,14 +29,14 @@ Reading .ogg needs soundfile (libsndfile), which is not in pyproject: uv run --w
 
 import contextlib
 import os
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import fsb5
 import hevag
 import numpy as np
 import unityyaml
-from paths import PROJECT, common
+from paths import PROJECT, common, progress
 
 HEVAG_FORMAT = 5  # AudioCompressionFormat.HEVAG
 PSP2_GROUP = '17'  # BuildTargetGroup.PSP2, the key of the importer's platform override
@@ -190,11 +190,29 @@ def build(assets, workers=None):
     out = [None] * len(jobs)
     if not jobs:
         return out
-    with one_blas_thread(), ProcessPoolExecutor(workers or default_workers(len(groups))) as pool:
+    workers = workers or default_workers(len(groups))
+    with (
+        one_blas_thread(),
+        ProcessPoolExecutor(workers) as pool,
+        # Counted in frames: the long clips go first, a few to a group, so clips done would say little.
+        progress.step(
+            f'Encoding audio ({workers} worker{"s" if workers > 1 else ""})', total=sum(sizes), eta=True, count=None
+        ) as step,
+    ):
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
-        for future, g in futures.items():
-            for i, result in zip(g, future.result(), strict=True):
-                out[i] = result
+        done = 0
+        step.note(f'0/{len(jobs)} clips')
+        try:
+            for future in as_completed(futures):
+                g = futures[future]
+                for i, result in zip(g, future.result(), strict=True):
+                    out[i] = result
+                step.advance(sum(sizes[i] for i in g))
+                done += len(g)
+                step.note(f'{done}/{len(jobs)} clips')
+        except BaseException:  # Ctrl+C or a failed group: the groups not started yet are dropped
+            pool.shutdown(cancel_futures=True)
+            raise
     return out
 
 

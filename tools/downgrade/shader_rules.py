@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import fastnoise
+import progress
 from common import (
     EXTERNAL,
     HERE,
@@ -118,7 +119,7 @@ def decompile_shaders(game: Path):
     data = game_data(game)
     # USCSandbox.exe runs on the .NET 8 runtime of the local SDK, which is not on PATH.
     dotnet_env = {**os.environ, 'DOTNET_ROOT': str(EXTERNAL / 'dotnet')}
-    for assets in sorted(data.glob('*.assets')):
+    for assets in progress.track(sorted(data.glob('*.assets')), 'Decompiling shaders'):
         result = subprocess.run(
             [str(exe), 'null', str(assets), '--all', '--version', SOURCE_VERSION],
             cwd=work,

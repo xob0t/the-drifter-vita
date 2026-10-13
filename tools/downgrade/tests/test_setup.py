@@ -3,8 +3,10 @@
 uv run python -m unittest discover tools/downgrade/tests
 """
 
+import contextlib
 import hashlib
 import importlib.util
+import io
 import sys
 import tempfile
 import unittest
@@ -120,7 +122,7 @@ class VitaSdk(unittest.TestCase):
         self.assertIsNone(setup.extract_command(Path(r'D:\sdk.ZIP'), out, '7z.exe', 'tar.exe'))
         self.assertEqual(
             setup.extract_command(archive, out, '7z.exe', 'tar.exe'),
-            ['7z.exe', 'x', '-y', '-bso0', r'-oC:\vitasdk', r'D:\sdk.7z'],
+            ['7z.exe', 'x', '-y', '-bso0', '-bsp0', r'-oC:\vitasdk', r'D:\sdk.7z'],
         )
         self.assertEqual(
             setup.extract_command(archive, out, None, 'tar.exe'), ['tar.exe', '-xf', r'D:\sdk.7z', '-C', r'C:\vitasdk']
@@ -152,7 +154,7 @@ class VitaSdk(unittest.TestCase):
                     destination.mkdir()
                     (destination / 'other.txt').write_bytes(b'')
                 args = SimpleNamespace(vita_sdk_dir=str(destination), dry_run=False)
-                with mock.patch('builtins.print'):
+                with contextlib.redirect_stdout(io.StringIO()):
                     sdk = setup.Setup(args).install_sdk(source.parent)
                 self.assertEqual((destination / setup.SDK_MARKER).exists(), ours)
                 with mock.patch.object(setup, 'setting', return_value=str(sdk)):

@@ -53,6 +53,7 @@ import dnfile
 import editor_settings
 import paths
 import unityyaml
+from paths import progress
 
 IL2CPP_BUILD = paths.EDITOR_DATA / 'il2cpp' / 'build'
 UNITY_LINKER = IL2CPP_BUILD / 'UnityLinker.exe'
@@ -469,15 +470,17 @@ def tool_env():
     return env
 
 
-def run(command, log, cwd=None):
-    """Run a tool, its output to a log file; on failure show the log's tail."""
+def run(command, log, name, cwd=None):
+    """Run a tool, its output to a log file, under a step called `name` that shows the log's last
+    line; on failure show the log's tail."""
     start = time.time()
     with log.open('w', encoding='utf-8', errors='replace') as f:
         f.write(subprocess.list2cmdline([str(c) for c in command]) + '\n\n')
         f.flush()
-        result = subprocess.run(
-            [str(c) for c in command], cwd=cwd, env=tool_env(), stdout=f, stderr=subprocess.STDOUT, check=False
-        )
+        with progress.following(name, log, start=log.stat().st_size):
+            result = subprocess.run(
+                [str(c) for c in command], cwd=cwd, env=tool_env(), stdout=f, stderr=subprocess.STDOUT, check=False
+            )
     if result.returncode:
         tail = log.read_text(encoding='utf-8', errors='replace').splitlines()[-30:]
         raise RuntimeError(f'{Path(command[0]).name} failed ({result.returncode}), see {log}:\n' + '\n'.join(tail))
@@ -547,7 +550,9 @@ def build(out=paths.OUT, project=paths.PROJECT, count=None, force=False, work=BU
         for name, text in xmls.items():
             (xml_dir / name).write_bytes(text.encode('utf-8'))
 
-        times['unitylinker'] = run(linker_command(inputs, roots, managed, data, xml_dir), work / 'unitylinker.log')
+        times['unitylinker'] = run(
+            linker_command(inputs, roots, managed, data, xml_dir), work / 'unitylinker.log', 'UnityLinker'
+        )
         # As Unity does: the stripped DLLs replace the originals (the .mdb files stay).
         strip = managed / 'tempStrip'
         for p in managed.glob('*.dll'):
@@ -559,7 +564,7 @@ def build(out=paths.OUT, project=paths.PROJECT, count=None, force=False, work=BU
         (work / 'ApplicationInfo.cpp').write_text(appinfo, encoding='utf-8')
         snc = [PSP2SNC, '-DNDEBUG', '-DSN_TARGET_PSP2=1', '-O3', '-Xc-=exceptions', '-Xc-=rtti', '-Xthumb=0']
         snc += ['-Xblxcall=1', '-c', 'ApplicationInfo.cpp', '-o', 'ApplicationInfo.o']
-        times['appinfo'] = run(snc, work / 'appinfo.log', cwd=work)
+        times['appinfo'] = run(snc, work / 'appinfo.log', 'ApplicationInfo.cpp', cwd=work)
 
         # psp2snc names file-local symbols by a hash of the source file's path, so objects compiled in
         # another folder do not link with new ones: the object cache starts over when the folder moves.
@@ -569,7 +574,7 @@ def build(out=paths.OUT, project=paths.PROJECT, count=None, force=False, work=BU
         cache.mkdir(parents=True, exist_ok=True)
         folder.write_text(str(work.resolve()), encoding='utf-8')
         command = il2cpp_command(inputs, roots, managed, module, generated, work / 'ApplicationInfo.o', cache)
-        times['il2cpp'] = run(command, work / 'il2cpp.log', cwd=work)  # psp2ld writes its stub archive here
+        times['il2cpp'] = run(command, work / 'il2cpp.log', 'IL2CPP', cwd=work)  # psp2ld writes its stub archive here
         stamp_file.write_text(stamp)
 
     sources = {
