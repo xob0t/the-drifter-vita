@@ -29,12 +29,13 @@ Reading .ogg needs soundfile (libsndfile), which is not in pyproject: uv run --w
 
 import contextlib
 import os
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import fsb5
 import hevag
 import numpy as np
+import progress
 import unityyaml
 from paths import PROJECT, common
 
@@ -190,11 +191,18 @@ def build(assets, workers=None):
     out = [None] * len(jobs)
     if not jobs:
         return out
-    with one_blas_thread(), ProcessPoolExecutor(workers or default_workers(len(groups))) as pool:
+    workers = workers or default_workers(len(groups))
+    with (
+        one_blas_thread(),
+        ProcessPoolExecutor(workers) as pool,
+        progress.step(f'Audio ({len(jobs)} clips, {workers} workers)', total=len(jobs), eta=True) as step,
+    ):
         futures = {pool.submit(_make, [jobs[i] for i in g]): g for g in groups}
-        for future, g in futures.items():
+        for future in as_completed(futures):
+            g = futures[future]
             for i, result in zip(g, future.result(), strict=True):
                 out[i] = result
+            step.advance(len(g))
     return out
 
 

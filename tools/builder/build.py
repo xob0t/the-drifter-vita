@@ -31,6 +31,7 @@ import managers
 import mixer
 import paths
 import preload as preloadlib
+import progress
 import scene as scenelib
 import scripts as scriptlib
 import shader_object
@@ -198,7 +199,7 @@ class Build:
         db = self.layout.db
         mbs = [db.by_guid[g].docs[fid] for g, fid, cid in objects if cid == 114]
         self.scripts.load_models({self.scripts.resolve(d.fields['m_Script'], d.fields) for d in mbs} - {None})
-        for i, (g, fid, cid) in enumerate(objects):
+        for i, (g, fid, cid) in enumerate(progress.track(objects, file_name)):
             a = db.by_guid.get(g)
             tree, script, data = None, None, None
             if a is not None and a.is_yaml:
@@ -270,51 +271,51 @@ def write_streams(build, names, compare_files=False):
         if data is None:
             continue
         build.write(name, data)
-        note = compare(name, data, build.target.reference) if compare_files else ''
-        print(f'{name}: {len(data)} bytes {note}')
+        progress.written(name, len(data), note=compare(name, data, build.target.reference) if compare_files else '')
 
 
 def write_all(build, only=frozenset(), compare_files=False):
-    """Writes every file of the player's data (or those named in `only`), printing each."""
+    """Writes every file of the player's data (or those named in `only`), with a line for each."""
     paths.builtin_shaders()
     ref = build.target.reference
-    for i in range(len(build.layout.scenes)):
-        name = f'level{i}'
-        if only and name not in only:
-            continue
-        start = time.time()
-        data = build.level(i)
-        build.write(name, data)
-        note = compare(name, data, ref) if compare_files else ''
-        print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}')
-    for name in build.files:
-        if only and name not in only:
-            continue
-        start = time.time()
-        data, missing = build.shared(name)
-        build.write(name, data)
-        note = compare(name, data, ref) if compare_files else ''
-        gaps = f'; not built yet: {dict(missing)}' if missing else ''
-        print(f'{name}: {len(data)} bytes, {time.time() - start:.1f} s {note}{gaps}')
-        # Only building a file appends to its streams, so they are complete.
-        write_streams(build, [f'{name}.resS', audio.resource_name(name)], compare_files)
-    if not only or 'Resources/unity_builtin_extra' in only:
-        if build.target.name == 'windows':
-            import windows_builtin_extra
+    levels = [i for i in range(len(build.layout.scenes)) if not only or f'level{i}' in only]
+    shared = [name for name in build.files if not only or name in only]
+    extra, ggm = 'Resources/unity_builtin_extra', 'globalgamemanagers'
+    rest = [name for name in (extra, ggm) if not only or name in only]
 
-            data = windows_builtin_extra.build_extra(build)
-        else:
-            data = builtin_extra.build_extra(build)
-        build.write('Resources/unity_builtin_extra', data)
-        note = compare('Resources/unity_builtin_extra', data, ref) if compare_files else ''
-        print(f'Resources/unity_builtin_extra: {len(data)} bytes {note}')
-    if not only or 'globalgamemanagers' in only:
-        data = build.globalgamemanagers()
-        build.write('globalgamemanagers', data)
-        print(
-            f'globalgamemanagers: {len(data)} bytes', compare('globalgamemanagers', data, ref) if compare_files else ''
-        )
-    write_streams(build, list(build.streams), compare_files)
+    def done(name, data, start, missing=None):
+        build.write(name, data)
+        note = compare(name, data, ref) if compare_files else ''
+        progress.written(name, len(data), time.time() - start, note, missing)
+        files.advance()
+
+    with progress.display(), progress.step('Data files', total=len(levels) + len(shared) + len(rest)) as files:
+        for i in levels:
+            files.note(f'level{i}')
+            start = time.time()
+            done(f'level{i}', build.level(i), start)
+        for name in shared:
+            files.note(name)
+            start = time.time()
+            data, missing = build.shared(name)
+            done(name, data, start, missing)
+            # Only building a file appends to its streams, so they are complete.
+            write_streams(build, [f'{name}.resS', audio.resource_name(name)], compare_files)
+        if extra in rest:
+            files.note(extra)
+            start = time.time()
+            if build.target.name == 'windows':
+                import windows_builtin_extra
+
+                data = windows_builtin_extra.build_extra(build)
+            else:
+                data = builtin_extra.build_extra(build)
+            done(extra, data, start)
+        if ggm in rest:
+            files.note(ggm)
+            start = time.time()
+            done(ggm, build.globalgamemanagers(), start)
+        write_streams(build, list(build.streams), compare_files)
 
 
 def main():

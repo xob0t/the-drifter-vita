@@ -17,6 +17,7 @@ dependencies = [
     # certificates on first use, so Python's own copy of the store lacks some (archive.org's).
     "pyyaml>=6.0.3",
     "quicktex>=0.3.1",
+    "rich>=15.0.0",
     "soundfile>=0.14.0",
     "truststore>=0.10",
     # The exported project's texture and atlas data; pinned to the version the rules were written against.

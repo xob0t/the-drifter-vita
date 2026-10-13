@@ -15,15 +15,24 @@ import build as data
 import il2cpp
 import package
 import paths
+import progress
 
 
 def make(out):
     start = time.time()
-    paths.builtin_shaders()
-    package.vita_folder(out)
-    data.write_all(data.Build(out, platform='vita'))
-    il2cpp.build(out)
-    print(f'built {out} in {time.time() - start:.0f} s')
+    with progress.display():
+        with progress.step('Build folder'):
+            paths.builtin_shaders()
+            package.vita_folder(out)
+        data.write_all(data.Build(out, platform='vita'))
+        with progress.step('Code module'):
+            times = il2cpp.build(out)
+    if times['reused']:
+        progress.console.print('Code module: reused, its inputs have not changed')
+    else:
+        steps = ', '.join(f'{k} {times[k]:.0f} s' for k in ('unitylinker', 'il2cpp'))
+        progress.console.print(f'Code module: {steps}')
+    progress.done(f'Built {out} in {time.time() - start:.0f} s')
 
 
 def main():
