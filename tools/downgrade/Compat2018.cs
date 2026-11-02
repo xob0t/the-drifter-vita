@@ -35,6 +35,7 @@ using UnityEngine;
 //   Allocs.cs            allocation rules and GuiReshows
 //   Scriptables.cs       per-frame script costs: PowerQuest's scriptable lookups
 //   EffectSprites.cs, EffectShapes.cs  rain, sand and bees drawn as pages; OverlapPoint
+//   Clock.cs             the PS Vita's CPU and GPU clocks (the DrifterClock plugin, native/clock)
 namespace DrifterCompat
 {
     // The downgrader renames Assembly-CSharp(-firstpass), which Unity reserves for

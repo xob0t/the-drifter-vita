@@ -144,6 +144,9 @@ def exists(name):
         return any(n.rsplit('/', 1)[-1] == name for n in connection.nlst(vita.REMOTE))
 
 
+LAUNCH_SECONDS = 45  # how long launch waits for the probe to log the flags
+
+
 def launch(flags, attempts=3):
     """Launches the game and checks from the probe's log that it started with these flags;
     a launch right after quitting can be ignored while the previous run is still closing.
@@ -151,19 +154,25 @@ def launch(flags, attempts=3):
     for attempt in range(1, attempts + 1):
         time.sleep(5)
         vita.command(f'{vita.KEEP_AWAKE}; launch {pipeline.VITA_TITLE_ID}')
-        time.sleep(15)
-        try:
-            # The probe writes log.txt anew at each start, with its args line near the top. The
-            # whole line is compared: a long one (a -vita-press schedule) once ran past the 600
-            # characters an older check read, which quit the game at every launch.
-            log = vita.read(f'{vita.REMOTE}/log.txt').decode(errors='replace')
-        except vita.FTP_ERRORS as error:
-            log, reason = '', f'log.txt not read ({error!r})'
-        else:
-            found = heartbeats.ARGS_LINE.search(log)
-            reason = 'no args line in log.txt' if not found else f'args line differs: {found.group(1)[:200]}'
-        if f'] args {flags}\n' in log:
-            return True
+        # Read until the log shows these flags: a console has taken from 2 to 15 s to start the
+        # game after the launch command answered.
+        deadline = time.time() + LAUNCH_SECONDS
+        while True:
+            time.sleep(3)
+            try:
+                # The probe writes log.txt anew at each start, with its args line near the top. The
+                # whole line is compared: a long one (a -vita-press schedule) once ran past the 600
+                # characters an older check read, which quit the game at every launch.
+                log = vita.read(f'{vita.REMOTE}/log.txt').decode(errors='replace')
+            except vita.FTP_ERRORS as error:
+                log, reason = '', f'log.txt not read ({error!r})'
+            else:
+                found = heartbeats.ARGS_LINE.search(log)
+                reason = 'no args line in log.txt' if not found else f'args line differs: {found.group(1)[:200]}'
+            if f'] args {flags}\n' in log:
+                return True
+            if time.time() > deadline:
+                break
         pipeline.log(f'launch attempt {attempt} of {attempts}: {reason}; quitting the game')
         vita.command('quit all; wait 3s')
     return False

@@ -9,6 +9,7 @@
 - `pipeline.py` runs the stages. `common.py` has the paths and helpers. `progress.py` shows the progress of setup, the pipeline and the builder (rich): bars for the downloads, AssetRipper's export, the builder's steps and the VPK, and the last line of a long tool's log (IL2CPP, the Unity build).
 - `asset_rules.py` and `shader_rules.py` rewrite scenes, prefabs, textures, audio, settings and shaders. `shaders/` has the new shaders, `patches/` a fix to USCSandbox.
 - `DowngradeAssemblies.cs` and `rewriter/*.cs` rewrite the game's assemblies. The rewritten code calls DrifterCompat (`Compat2018.cs` and `compat/*.cs`), which fills in what Unity 2018 lacks and holds the performance rules. `unity/DowngradeBuild.cs` is the editor's build entry point.
+- `native/clock` is the PS Vita's `DrifterClock` plugin, which Compat `Clock` calls to set the clocks. The pipeline builds it with the SDK's compiler and copies it to the build's `Media/Plugins`.
 - `diag/*.cs` is the test probe. `diag.py`, `sweep.py` and the other PC tools in [parity.md](parity.md) run it.
 - `vita.py`, `vita_run.py`, `vita_sweep.py` and `vita_steps.sh` drive the console. `vitalike.py` measures on a PC slowed to the Vita's speed.
 - `livearea.py`, `vita_glyphs.py` and `vita_controls_art.py` draw the LiveArea art and the Vita's button glyphs.
