@@ -18,6 +18,7 @@ The player flags Compat reads, by default (the rules' descriptions in [pipeline.
 | Staying awake: `-compat-allow-sleep`, `-compat-keep-screen-on` | on | - |
 | Heap sorting: `-compat-no-heap-sorting` | on | - |
 | Voice reverbs: `-compat-reverb-limit <n>` | 1 | - |
+| Clocks: `-compat-cpu-mhz <n>`, `-compat-gpu-mhz <n>` (0 leaves the clock alone) | 444, 222 MHz | - |
 | Tests: `-compat-water-mask-test white\|black`, `-compat-check-named-lists`, `-compat-collider-check`, `-crt-generic`, `-crt-aber-game off` (pass 6 instead of 8), `-crt-pass <n>`, `-crt-compare <dir> <frame>` | off | off |
 | Logs: `-compat-log-binds`, `-compat-effects-log` (pages every 300 frames) | off | off |
 | Previews (probe's flags only, so diag builds): `-vita-emulate`, `-vita-press <schedule>`, `-diag-crt on\|off` | off | off |

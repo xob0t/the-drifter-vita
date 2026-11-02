@@ -94,10 +94,11 @@ namespace DrifterDiag
             checkGlobal = Value(args, "-diag-check-global");
             checkBlend = Value(args, "-diag-check-blend");
             AllocTimer.Enabled = args.Contains("-diag-alloc-scripts"); // takes no value
-            // Test players on PC run muted; -diag-sound keeps the sound. The mix still runs, so
-            // audio timing is unaffected. The PS Vita keeps its sound for listening checks. Applied
-            // every frame: the game sets AudioListener.volume from its master volume setting.
-            mute = Application.platform != RuntimePlatform.PSP2 && !args.Contains("-diag-sound");
+            // Test players on PC run muted; -diag-sound keeps the sound. The PS Vita keeps its sound
+            // for listening checks unless given -diag-mute. The mix still runs, so audio timing and
+            // the mixer's load are unaffected. Applied every frame: the game sets
+            // AudioListener.volume from its master volume setting.
+            mute = (Application.platform != RuntimePlatform.PSP2 || args.Contains("-diag-mute")) && !args.Contains("-diag-sound");
             stickWalkSeconds = FloatFlag(args, "-diag-stick-walk", stickWalkSeconds);
             string place = Value(args, "-diag-place");
             if (place != null) placeAt = place.Split(',').Select(v => Float(v)).ToArray();

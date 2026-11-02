@@ -9,7 +9,7 @@ The tools in `tools/downgrade` compare the original game with the translated pla
 - `effect_strips.py <Room>` writes frame strips (original above, translated below) and motion statistics to `artifacts/effects/<Room>/`, for random effects such as rain and bees.
 - `crt_compare.py [--quiet-noise] [--generic]` draws the one-pass CRT filter (`Crt` in `compat/Crt.cs`) and the game's three passes from the same input in a Windows diag build and writes both to `artifacts/crt/`. With the noise off, the Vita's two steps ([the Vita's rules](vita.md#rules-specific-to-the-vita)) are 0.19 levels from the original.
 - `capture.py <exe> <out dir> [--script ...]` launches a player at 960x544 and runs timed `shot`, `key` and `click` steps. The other tools use it.
-- `uv run --with pycaw tools/downgrade/mute_players.py` mutes every `TheDrifter.exe` in the Windows mixer. The probe already mutes PC players unless given `-diag-sound`.
+- `uv run --with pycaw tools/downgrade/mute_players.py` mutes every `TheDrifter.exe` in the Windows mixer. The probe already mutes PC players unless given `-diag-sound`. On the Vita it mutes only with `-diag-mute`; the mixer still runs, so its load is measured all the same.
 
 `sweep.py`, `effect_strips.py`, `vita_sweep.py` and `profile_room.py` add `-diag-fast-intro 20 -diag-skip-intro`; `vita_run.py` and `vitalike.py` add `-diag-skip-intro`.
 

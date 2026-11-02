@@ -244,6 +244,7 @@ COMPAT_SOURCES = [
             'Scriptables',
             'EffectSprites',
             'EffectShapes',
+            'Clock',
         )
     ),
 ]
@@ -688,6 +689,24 @@ VITA_COMMANDS = (VITA_HOST, 1338)  # vitacompanion command server
 PACKAGE_CHUNK = 1 << 20  # package_vita compresses a file this many bytes at a time
 
 
+def native_plugins(output: Path):
+    """The PS Vita native plugins, built with the SDK (native/clock/build.py), into the player's
+    Media/Plugins, where IL2CPP's [DllImport("DrifterClock")] loads them. After either build, so the VPK
+    and vita.py sync take them as they take the player's own files."""
+    import importlib.util
+
+    # By path: tools/builder, on sys.path for the build, has a build.py too.
+    spec = importlib.util.spec_from_file_location('native_clock', HERE / 'native' / 'clock' / 'build.py')
+    clock = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(clock)
+    folder = output / 'Media' / 'Plugins'
+    folder.mkdir(parents=True, exist_ok=True)
+    built = clock.build()
+    for name in clock.FILES:
+        shutil.copy2(built / name, folder / name)
+    log(f'Native plugins in {folder}: {", ".join(clock.FILES)}')
+
+
 def vita_app_files(build: Path):
     """Files of the installed app for a PC Hosted PS Vita build, as (path in the app,
     local path or bytes): the player becomes eboot.bin with the trial flag cleared,
@@ -779,6 +798,7 @@ def work_files(version):
         WORK / 'upstream',
         WORK / 'livearea',
         WORK / 'builder',
+        WORK / 'native',
         build_dir(version, 'il2cpp', 'vita'),
     ]
 
@@ -944,6 +964,8 @@ def main():
             args.development,
             args.import_jobs,
         )
+    if args.stage in ('build', 'all') and args.platform == 'vita':
+        native_plugins(output)
     if args.stage in ('package', 'deploy') or (args.stage == 'all' and args.platform == 'vita'):
         vpk = package_vita(build_dir(args.version, 'il2cpp', 'vita', args.diag, unity))
         if args.stage == 'deploy':
