@@ -495,6 +495,20 @@ def digest(*parts):
     return h.hexdigest()
 
 
+def check_path_lengths():
+    """Stop with what to do when a header il2cpp.exe hashes before it compiles has a path over 259 characters:
+    il2cpp.exe can't open it (common.LONGEST_IL2CPP_FILE) and dies with an unhandled PathTooLongException."""
+    trees = [LIBIL2CPP, IL2CPP_ROOT.parent / 'external', PSP2_IL2CPP]
+    longest = max(
+        (p for tree in trees if tree.exists() for p in tree.rglob('*') if p.is_file()), key=lambda p: len(str(p))
+    )
+    if len(str(longest)) > 259:
+        raise RuntimeError(
+            f"IL2CPP can't open files with a path over 259 characters, and this one has {len(str(longest))}:\n"
+            f'  {longest}\n' + (paths.common.root_too_long() or f'Move {paths.EDITOR_DATA} to a shorter path.')
+        )
+
+
 def build(out=paths.OUT, project=paths.PROJECT, count=None, force=False, work=BUILD):
     """Build the code module and copy what the code step writes into `out`. Returns a dict of timings."""
     times = {}
@@ -536,6 +550,7 @@ def build(out=paths.OUT, project=paths.PROJECT, count=None, force=False, work=BU
         and (generated / 'Data' / 'Metadata' / 'global-metadata.dat').exists()
     )
     if not fresh:
+        check_path_lengths()
         stamp_file.unlink(missing_ok=True)
         for d in (data, generated):
             if d.exists():

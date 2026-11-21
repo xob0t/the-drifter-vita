@@ -27,6 +27,7 @@ from common import (
     CSC,
     EDITORS,
     EXTERNAL,
+    MAX_ROOT,
     ROOT,
     SOURCE_VERSION,
     STEAM,
@@ -37,6 +38,7 @@ from common import (
     editor_data,
     env,
     file_hash,
+    root_too_long,
 )
 from rich.text import Text
 
@@ -714,6 +716,16 @@ def check_node():
     )
 
 
+def check_folder():
+    """The repository's folder is short enough for IL2CPP (common.MAX_ROOT)."""
+    return Check(
+        'Folder path',
+        not root_too_long(),
+        f"{len(str(ROOT))} characters; IL2CPP's files need it at {MAX_ROOT} or fewer",
+        r'move the folder to a short path such as C:\drifter',
+    )
+
+
 def check_space(target, project_exists):
     need = space_needed(target, project_exists)
     free = free_gb(WORK)
@@ -840,6 +852,7 @@ def checks_for(target, game: Path, version=TARGET, license=False):
     """Every requirement of a target, for the doctor's full checklist."""
     platform = 'vita' if target == 'vita' else 'windows'
     checks = [
+        check_folder(),
         check_python(),
         check_csc(),
         check_game(game),
@@ -893,6 +906,8 @@ def stage_checks(stage, platform, backend, game: Path, version=TARGET, unity=Fal
             )
         checks += ([] if editor_free else [check_editor(version)]) + module_checks(target, version, not editor_free)
     if stage in ('rip', 'project', 'build', 'all'):
+        if platform == 'vita':  # the PS Vita build runs IL2CPP on Unity's files under the folder
+            checks.append(check_folder())
         checks.append(check_space(target, project.exists()))
     if stage == 'deploy':
         checks.append(check_vita_host(required=True))
