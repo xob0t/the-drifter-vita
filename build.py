@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'tools' / 'downgrade'))
 import progress  # noqa: E402
-from common import registry_env  # noqa: E402
+from common import registry_env, root_too_long  # noqa: E402
 
 RETRY = 'Fix what it says above and run uv run build.py again: it picks up where it stopped.'
 
@@ -48,6 +48,9 @@ def main():
         help='build with the Unity editor instead: installs it, needs a Unity license, keeps its files',
     )
     args = parser.parse_args()
+    # First, before setup's downloads: from a deeper folder the build fails at IL2CPP, halfway through.
+    if problem := root_too_long():
+        progress.fail(f'build.py: {problem}')
     game = ['--game', args.game] if args.game else []
     sdk = ['--vita-sdk', args.vita_sdk] if args.vita_sdk else []
     unity = ['--unity'] if args.unity else []

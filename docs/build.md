@@ -15,7 +15,7 @@ The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run buil
 
    Node.js is optional, but it cuts a first Vita build from about 100 minutes to about 40 (see [Node.js](#nodejs)). Open a new terminal afterwards, so it finds them.
 
-2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), the latest release, and extract it, or clone the repository. In its folder, run the setup script for your target:
+2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), the latest release, and extract it to a short path such as `C:\drifter`, or clone the repository there. The repository's folder needs a path of at most 72 characters (see [When a stage fails](#when-a-stage-fails)). In its folder, run the setup script for your target:
 
    ```powershell
    uv run tools/setup.py                                         # Windows player
@@ -191,9 +191,11 @@ A project assembled with `--diag` must be built with `--diag` too. Run the `proj
 
 ## When a stage fails
 
+- **"il2cpp.exe has stopped working"**, or "This folder's path is ... characters long": the repository's folder is too deep. Unity 2018.2's `il2cpp.exe` is a .NET Framework program held to Windows' 260-character path limit, whatever Windows' long-path setting, and the longest header it reads is 186 characters below the folder. From a folder over 72 characters it fails halfway through the build with `PathTooLongException` ("The specified output path is too long to write generated files" in `work/builder/il2cpp/il2cpp.log`). `build.py` checks the folder before setup, the doctor lists it as `Folder path`, and the builder checks the headers' paths before it starts `il2cpp.exe`. Move the whole folder to a short path such as `C:\drifter` and run `build.py` again there.
+  The pipeline also turns Windows' crash dialogs off for the tools it starts (`SetErrorMode`, which they inherit; `common.no_crash_dialogs`), so a tool that crashes exits instead of waiting behind "has stopped working", and its error is in its log and in the output.
 - **Before any stage**: "requirement(s) missing" lists what the stage lacks, with the command that fixes each item.
   For The Drifter, "another release of the game" means its code (`TheDrifter_Data/Managed/Assembly-CSharp.dll`) is neither the current Steam release's nor GOG's 1.1.5, which the rules are written for. Update the game, or have Steam verify its files.
 - **`rip`**: "AssetRipper did not start" or "produced no project". Check the AssetRipper folder and `artifacts/downgrade/assetripper.log`.
 - **`project`**: a rule found the game data different from what it expects and stops with the file and the reason. This happens with another version of the game that got past the game check (with `--skip-checks`, for example). The rules are written for the current Steam release. GOG's 1.1.5 has the same data; only Steam's restart check is missing from its code.
-- **`build`**: the full Unity log is in `artifacts/downgrade/build-<version>-<platform>-<backend>[-diag].log`, and the pipeline prints its errors. If IL2CPP fails on the Vita, check the SDK with `uv run tools/setup.py doctor --target vita`. A good build still counts about 670 errors in its summary (671 on Windows, 675 on the Vita), so compare with that rather than with zero.
+- **`build`**: the full Unity log is in `artifacts/downgrade/build-<version>-<platform>-<backend>[-diag].log`, and the pipeline prints its errors. The editor-free PS Vita build's logs are in `work/builder/il2cpp`: `unitylinker.log` and `il2cpp.log`. If IL2CPP fails on the Vita, check the SDK with `uv run tools/setup.py doctor --target vita`. A good build still counts about 670 errors in its summary (671 on Windows, 675 on the Vita), so compare with that rather than with zero.
 - **`deploy`** and `vita.py`: "Set DRIFTER_VITA_HOST" means the console's address is not set.

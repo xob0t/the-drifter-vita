@@ -20,6 +20,22 @@ from rich.text import Text
 truststore.inject_into_ssl()
 
 
+def no_crash_dialogs():
+    """Turn off Windows' crash dialogs for this process and the tools it starts, which inherit its error mode. A tool
+    that crashes then exits, and its error goes to its log and the build's output. Without this, il2cpp.exe's unhandled
+    exception showed "has stopped working" and the build stopped behind the dialog."""
+    if sys.platform == 'win32':
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetErrorMode(
+            kernel32.GetErrorMode() | 0x0001 | 0x0002
+        )  # SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX
+
+
+no_crash_dialogs()
+
+
 def registry_env(name, scope):
     """A variable as stored for the user ('user') or the machine ('machine'), or None."""
     import winreg
@@ -120,6 +136,31 @@ def editor_data(version):
     installed editor's (the same files)."""
     extracted = unity_files(version) / 'Editor' / 'Data'
     return extracted if extracted.exists() else EDITORS / version / 'Editor' / 'Data'
+
+
+# Unity 2018.2's il2cpp.exe is a .NET Framework program held to Windows' 260-character path limit (259 characters and
+# the terminating NUL), whatever Windows' long-path setting. Before it compiles, it hashes every header of the PS Vita
+# plugin's libil2cpp, and this one is the longest, 186 characters below the repository's folder; the deepest file the
+# build writes under the folder is shorter (153, in work/ilspy). From a deeper folder il2cpp.exe throws
+# PathTooLongException ("The specified output path is too long to write generated files") and Windows shows
+# "il2cpp.exe has stopped working". The limit is 72 characters, as measured for T2D NO FATE's same layout.
+LONGEST_IL2CPP_FILE = (
+    rf'tools\external\unity-{TARGET}\Editor\Data\PlaybackEngines\PSP2Player\Tools\il2cpp\libil2cpp\include'
+    r'\icalls\mscorlib\System.Runtime.InteropServices.WindowsRuntime\UnsafeNativeMethods.h'
+)
+MAX_ROOT = 259 - len('\\' + LONGEST_IL2CPP_FILE)  # 72
+
+
+def root_too_long():
+    """What to tell the user when the repository's folder is too deep for IL2CPP, or ''. Unity's files from an
+    installed editor (no extracted copy) aren't under the folder, so then the folder's length doesn't matter."""
+    if len(str(ROOT)) <= MAX_ROOT or (not unity_files(TARGET).exists() and (EDITORS / TARGET).exists()):
+        return ''
+    return (
+        f"This folder's path is {len(str(ROOT))} characters long:\n  {ROOT}\n"
+        f"The build needs {MAX_ROOT} or fewer: Unity's IL2CPP can't open files with a longer path. "
+        r'Move the whole folder to a short path such as C:\drifter and run uv run build.py there.'
+    )
 
 
 def download(url, destination: Path, digest: str | None):
