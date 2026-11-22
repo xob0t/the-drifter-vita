@@ -15,7 +15,7 @@ The steps below are for Windows 10 or 11, x64. For the PS Vita app, `uv run buil
 
    Node.js is optional, but it cuts a first Vita build from about 100 minutes to about 40 (see [Node.js](#nodejs)). Open a new terminal afterwards, so it finds them.
 
-2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), the latest release, and extract it to a short path such as `C:\drifter`, or clone the repository there. The repository's folder needs a path of at most 72 characters (see [When a stage fails](#when-a-stage-fails)). In its folder, run the setup script for your target:
+2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), the latest release, and extract it to a short path such as `C:\drifter`, or clone the repository there. In its folder, run the setup script for your target:
 
    ```powershell
    uv run tools/setup.py                                         # Windows player
