@@ -8,12 +8,14 @@ are offline. Writes to work/livearea/:
 
   icon0.png     128x128   bubble: Mick's face from the vertical key art
   bg0.png       840x500   LiveArea background: the sunset at the border fence (store screenshot)
-  gate.png      280x158   LiveArea start gate: the wide key art with its logo
+  gate.png      280x158   LiveArea start gate: the game's logo alone (logo.png), white on transparency, so
+                          the LiveArea background shows around it
   pic0.png      960x544   shown while the app starts: the wide key art with its logo
   splash.png    960x544   Unity's PS Vita splash image: pic0 in full colour
 
 The LiveArea images and pic0 are 8-bit indexed: the installer rejects a truecolor pic0
-(promote error 0x8010113D), and icon0 must not have an alpha channel. The outputs are
+(promote error 0x8010113D), and icon0 must not have an alpha channel. The gate's transparent
+pixels are one palette entry. The outputs are
 remade only when the cached sources or this script change. pipeline.py puts them into
 Vita builds (vita_app_files, settings_overlay). Previews of each image, the bubble and a
 mock-up of the LiveArea screen go to artifacts/livearea/.
@@ -49,6 +51,8 @@ SOURCES = {
     'library.jpg': (CDN + 'library_600x900_2x.jpg', '8f903a5fb6f85911e216eed5f15af28a2785b8d352cd8f7bbcae6e36cad389cc'),
     # Store screenshot, 1920x1080 (6x the game's 320x180, with the CRT filter): Mick at the
     # sunset by the border fence. The only screenshot without subtitles or interface.
+    # The library logo, 640x360: white lettering on a transparent background.
+    'logo.png': (CDN + 'logo.png', 'b3e5c79a24d4b14f68751fbda82090c9bde1616333b5aaaba7fbb68a76cc9964'),
     'sunset.jpg': (
         SCREENSHOTS
         + '00b547d44208071a4f2fa5dfe0c50579642069ca/ss_00b547d44208071a4f2fa5dfe0c50579642069ca.1920x1080.jpg',
@@ -63,6 +67,7 @@ SOURCES = {
 # keeping the background's subjects out of the gate.
 BG_ORIGIN = (60, 30)
 GATE_IN_BG = (280, 151)
+GATE_LOGO_WIDTH = 0.92  # of the gate's width
 
 
 def fetch():
@@ -129,10 +134,32 @@ def indexed(image: Image.Image):
     return rgb.quantize(palette=reference, dither=Image.Dither.NONE)
 
 
+def logo_gate(logo: Image.Image, size):
+    """The logo (cut to what isn't transparent) centred on a transparent image of size, 8-bit indexed with its
+    transparent pixels one palette entry (tRNS)."""
+    logo = logo.crop(logo.getbbox())
+    width = round(size[0] * GATE_LOGO_WIDTH)
+    logo = logo.resize((width, round(logo.height * width / logo.width)), Image.LANCZOS)
+    out = Image.new('RGBA', size, (0, 0, 0, 0))
+    out.alpha_composite(logo, ((size[0] - logo.width) // 2, (size[1] - logo.height) // 2))
+    # Edges blended against black, then cut at half coverage: an indexed image has one transparent entry.
+    rgb = Image.new('RGB', size, (0, 0, 0))
+    rgb.paste(out, mask=out.getchannel('A'))
+    image = rgb.quantize(PALETTE_COLORS - 1, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    clear = PALETTE_COLORS - 1
+    palette = [*image.getpalette()[: 3 * clear], 0, 0, 0]
+    alpha = out.getchannel('A').point(lambda a: 255 if a >= 128 else 0)
+    image.paste(clear, mask=alpha.point(lambda a: 255 - a))
+    image.putpalette(palette)
+    image.info['transparency'] = clear
+    return image
+
+
 def compose(sources):
     capsule = Image.open(sources['capsule.jpg']).convert('RGB')
     library = Image.open(sources['library.jpg']).convert('RGB')
     sunset = Image.open(sources['sunset.jpg']).convert('RGB')
+    logo = Image.open(sources['logo.png']).convert('RGBA')
     # The wide key art fills the boot screen (scaled 1.56x; it is the largest wide version).
     pic0 = cover(capsule, (960, 544))
     return {
@@ -141,7 +168,7 @@ def compose(sources):
         # Cropped past the CRT filter's darkened corners; Mick kneels left of the gate, the fence
         # and the sun stand to its right, the sky stays clear for the bubble and the title.
         'bg0.png': cover(sunset, (840, 500), (130, 15, 1894, 1065)),
-        'gate.png': cover(capsule, (280, 158)),
+        'gate.png': logo_gate(logo, (280, 158)),
         'pic0.png': pic0,
         'splash.png': pic0,
     }
@@ -182,7 +209,8 @@ def mockup(images):
             font=ImageFont.load_default(20),
         )
     gx, gy = BG_ORIGIN[0] + GATE_IN_BG[0], BG_ORIGIN[1] + GATE_IN_BG[1]
-    screen.paste(images['gate.png'].convert('RGB'), (gx, gy))
+    gate = images['gate.png'].convert('RGBA')
+    screen.paste(gate, (gx, gy), gate)
     draw.rectangle((gx - 3, gy - 3, gx + 282, gy + 160), outline=(245, 245, 245), width=3)
     label = ImageFont.load_default(18)
     width = draw.textlength('Start', font=label)
@@ -216,7 +244,7 @@ def generate(force=False):
     composed = compose(sources)
     final = {}
     for name, image in composed.items():
-        final[name] = image if name == 'splash.png' else indexed(image)
+        final[name] = image if name in ('splash.png', 'gate.png') else indexed(image)
         final[name].save(OUT / name, optimize=True)
         log(f'{name}: {final[name].size} {final[name].mode} {(OUT / name).stat().st_size} bytes')
     stamp_file.write_text(key + '\n')
