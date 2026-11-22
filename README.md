@@ -20,8 +20,8 @@ You need Windows 10 or 11 with 8 GB of memory, The Drifter from Steam or GOG and
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
-2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), right-click it, choose **Extract All** and change the folder to `C:\drifter` (or clone this repository there).
-   Keep the path short. Unity's IL2CPP can't open its own files from a folder whose path is longer than 72 characters, and a folder in Downloads or on a OneDrive desktop can be that deep, since Extract All nests the folder in another of the same name. The build checks this before it starts.
+2. Download [the-drifter-vita.zip](https://github.com/xob0t/the-drifter-vita/releases/latest/download/the-drifter-vita.zip), right-click it, choose **Extract All** and set the folder to `C:\drifter`. You can also clone this repository there.
+   Unity's IL2CPP crashes if the folder's path is longer than 72 characters, and `C:\drifter` keeps it well under. If the path is too long, the build says so and stops before it starts.
 
 3. Open the `the-drifter-vita` folder in `C:\drifter`, right-click in it, choose **Open in Terminal** (on Windows 10: Shift + right-click, **Open PowerShell window here**), and run:
 
