@@ -425,9 +425,13 @@ class Locks(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        patch = mock.patch.object(lock, 'WORK', Path(folder.name))
-        patch.start()
-        self.addCleanup(patch.stop)
+        for name, value in (
+            ('WORK', Path(folder.name)),
+            ('SHARED_DEVICE_LOCK', Path(folder.name) / 'vita-device.lock'),
+        ):
+            patch = mock.patch.object(lock, name, value)  # never the machine-wide console lock
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def test_take_release(self):
         self.assertEqual(lock.take('vita-device', 'a: test', 0), 0)

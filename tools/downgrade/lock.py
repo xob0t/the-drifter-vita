@@ -6,7 +6,9 @@ don't collide.
     uv run tools/downgrade/lock.py run <name> "<holder: purpose>" [--wait SECONDS] -- <command...>
     uv run tools/downgrade/lock.py status
 
-<name> is vita-device, vita-build or pc-build. Taking creates work/<name>.lock with O_EXCL, so the
+<name> is vita-device, vita-build or pc-build. vita-device is machine-wide, ~/.t3/vita-device.lock
+(VITA_DEVICE_LOCK overrides), shared with the other ports that use the console; the build locks are
+work/<name>.lock. Taking creates the file with O_EXCL, so the
 check and the write are one step and two jobs can never both get it. Release checks that the
 file still names you before removing it.
 
@@ -40,9 +42,16 @@ POLL_SECONDS = 5
 PERSON = 'user'  # the holder name of a person, as opposed to a job
 
 
+# The PS Vita is shared by every port on this machine, so vita-device is one machine-wide file, the same in
+# each port's lock.py; the build locks stay per repository.
+SHARED_DEVICE_LOCK = Path(os.environ.get('VITA_DEVICE_LOCK') or Path.home() / '.t3' / 'vita-device.lock')
+
+
 def path(name):
     if name not in LOCKS:
         sys.exit(f'unknown lock {name!r}; one of {", ".join(LOCKS)}')
+    if name == 'vita-device':
+        return SHARED_DEVICE_LOCK
     return WORK / f'{name}.lock'
 
 
